@@ -6,7 +6,8 @@ const egp=(n:number)=>new Intl.NumberFormat("ar-EG",{style:"currency",currency:"
 const statusLabels:Record<string,string>={new:"جديد",confirmed:"تم التأكيد",in_progress:"قيد التنفيذ",shipped:"تم الشحن",completed:"مكتمل",cancelled:"ملغي"};
 
 export default async function DashboardHome() {
-  const {supabase}=await requireAdmin();
+  const {supabase,role}=await requireAdmin();
+  if(role==="products")return <section className="dashboard-content"><div className="dashboard-title"><div><span className="eyebrow">صلاحية إدارة المنتجات</span><h2>تشكيلتك <em>جاهزة؟</em></h2></div></div><div className="admin-card staff-home-card"><p>أضيفي القطع الجديدة، ارفعي صورها، وحدّثي المنتجات المعروضة في المتجر.</p><Link href="/dashboard/products" className="button button-dark"><Boxes size={15}/> إدارة المنتجات</Link></div></section>;
   const [{data:orders},{count:orderCount},{count:productCount},{count:newCount}]=await Promise.all([
     supabase.from("orders").select("id,order_number,customer_name,status,total,created_at").order("created_at",{ascending:false}).limit(8),
     supabase.from("orders").select("id",{count:"exact",head:true}),

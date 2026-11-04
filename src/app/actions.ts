@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import type { OrderStatus } from "@/lib/types";
+import { createServiceClient } from "@/lib/supabase/service";
+import type { OrderStatus, StaffRole } from "@/lib/types";
 
 export async function loginAdmin(formData: FormData) {
   const email = String(formData.get("email") || "").trim();
@@ -37,7 +38,7 @@ const productSchema = z.object({
 });
 
 export async function createProduct(formData: FormData): Promise<{ ok: boolean; error?: string }> {
-  const { supabase } = await requireAdmin();
+  const { supabase } = await requireAdmin(["owner", "manager", "products"]);
   const parsed = productSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok:false, error:"راجعي البيانات، في خانة ناقصة أو غير صحيحة." };
   const data = parsed.data;
@@ -62,24 +63,116 @@ export async function createProduct(formData: FormData): Promise<{ ok: boolean; 
 }
 
 export async function setProductStatus(id: string, status: "active"|"draft"|"archived") {
-  const { supabase } = await requireAdmin();
+  const { supabase } = await requireAdmin(["owner", "manager", "products"]);
   const { error } = await supabase.from("products").update({ status, updated_at:new Date().toISOString() }).eq("id",id);
   if (error) return { ok:false, error:"تعذر تحديث المنتج." };
   revalidatePath("/"); revalidatePath("/dashboard/products"); return { ok:true };
 }
 
 export async function deleteProduct(id: string) {
-  const { supabase } = await requireAdmin();
-  const { error } = await supabase.from("products").delete().eq("id",id);
+  const { supabase } = await requireAdmin(["owner", "manager", "products"]);
+  const productId = z.string().uuid().safeParse(id);
+  if (!productId.success) return { ok:false, error:"المنتج المطلوب غير صحيح." };
+  const { data: product } = await supabase.from("products").select("image_url").eq("id",productId.data).maybeSingle();
+  const { error } = await supabase.from("products").delete().eq("id",productId.data);
   if (error) return { ok:false, error:"تعذر حذف المنتج." };
-  revalidatePath("/"); revalidatePath("/dashboard/products"); return { ok:true };
+  let warning: string | undefined;
+  const marker = "/storage/v1/object/public/products/";
+  const imageUrl = product?.image_url;
+  if (imageUrl?.includes(marker)) {
+    const path = decodeURIComponent(imageUrl.split(marker)[1].split("?")[0]);
+    const { error: imageError } = await supabase.storage.from("products").remove([path]);
+    if (imageError) warning = "اتحذف المنتج، لكن الصورة القديمة ما اتحذفتش من التخزين.";
+  }
+  revalidatePath("/"); revalidatePath("/dashboard/products"); return { ok:true, warning };
 }
 
 export async function setOrderStatus(id: string, status: OrderStatus) {
-  const { supabase } = await requireAdmin();
+  const { supabase } = await requireAdmin(["owner", "manager", "orders"]);
   const allowed: OrderStatus[] = ["new","confirmed","in_progress","shipped","completed"];
   if (!allowed.includes(status)) return { ok:false, error:"حالة الطلب غير صحيحة." };
   const { error } = await supabase.from("orders").update({ status, updated_at:new Date().toISOString() }).eq("id",id);
   if (error) return { ok:false, error:"تعذر تحديث الطلب." };
   revalidatePath("/dashboard"); revalidatePath("/dashboard/orders"); return { ok:true };
+}
+
+const staffRoleSchema = z.enum(["owner", "manager", "products", "orders"]);
+const staffUserSchema = z.object({
+  email: z.string().trim().email().max(254),
+  password: z.string().min(12).max(128),
+  role: staffRoleSchema,
+});
+
+function serviceSetupError() {
+  return { ok:false as const, error:"إعداد إدارة المستخدمين ناقص. أضيفي SUPABASE_SERVICE_ROLE_KEY في إعدادات Vercel ثم أعيدي النشر." };
+}
+
+export async function createStaffUser(formData: FormData): Promise<{ ok:boolean; error?:string }> {
+  await requireAdmin(["owner"]);
+  const parsed = staffUserSchema.safeParse({
+    email: String(formData.get("email") || "").trim().toLowerCase(),
+    password: String(formData.get("password") || ""),
+    role: formData.get("role"),
+  });
+  if (!parsed.success) return { ok:false, error:"راجعي البريد وكلمة المرور؛ كلمة المرور لازم تكون 12 حرفاً على الأقل." };
+
+  let service;
+  try { service = createServiceClient(); } catch { return serviceSetupError(); }
+  const { email, password, role } = parsed.data;
+  const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm:true });
+  if (error || !data.user) {
+    if (error?.message.toLowerCase().includes("already") || error?.code === "email_exists") return { ok:false, error:"البريد ده مستخدم بالفعل." };
+    return { ok:false, error:"تعذر إنشاء الحساب. راجعي مفتاح Supabase السري وإعدادات Auth." };
+  }
+
+  const { error: roleError } = await service.from("admins").insert({ user_id:data.user.id, role });
+  if (roleError) {
+    await service.auth.admin.deleteUser(data.user.id);
+    if (roleError.code === "42703") return { ok:false, error:"شغّلي ترحيل صلاحيات المستخدمين في Supabase أولاً." };
+    return { ok:false, error:"اتعمل الحساب لكن تعذر ربطه بدور المتجر؛ راجعي ترحيل قاعدة البيانات." };
+  }
+
+  revalidatePath("/dashboard/users");
+  return { ok:true };
+}
+
+export async function updateStaffRole(id: string, role: StaffRole): Promise<{ ok:boolean; error?:string }> {
+  const { user } = await requireAdmin(["owner"]);
+  const userId = z.string().uuid().safeParse(id);
+  const parsedRole = staffRoleSchema.safeParse(role);
+  if (!userId.success || !parsedRole.success) return { ok:false, error:"بيانات المستخدم أو الدور غير صحيحة." };
+  if (userId.data === user.id) return { ok:false, error:"ما ينفعش تغيّري دور حسابك من هنا." };
+
+  let service;
+  try { service = createServiceClient(); } catch { return serviceSetupError(); }
+  const { data: target, error: targetError } = await service.from("admins").select("user_id, role").eq("user_id",userId.data).maybeSingle();
+  if (targetError || !target) return { ok:false, error:"المستخدم مش موجود ضمن فريق المتجر." };
+  if (target.role === "owner" && parsedRole.data !== "owner") {
+    const { count } = await service.from("admins").select("user_id",{count:"exact",head:true}).eq("role","owner");
+    if ((count || 0) <= 1) return { ok:false, error:"لازم يفضل فيه مسؤولة كاملة واحدة على الأقل." };
+  }
+  const { error } = await service.from("admins").update({ role:parsedRole.data }).eq("user_id",userId.data);
+  if (error) return { ok:false, error:"تعذر تحديث صلاحية المستخدم." };
+  revalidatePath("/dashboard"); revalidatePath("/dashboard/users");
+  return { ok:true };
+}
+
+export async function deleteStaffUser(id: string): Promise<{ ok:boolean; error?:string }> {
+  const { user } = await requireAdmin(["owner"]);
+  const userId = z.string().uuid().safeParse(id);
+  if (!userId.success) return { ok:false, error:"المستخدم المطلوب غير صحيح." };
+  if (userId.data === user.id) return { ok:false, error:"ما ينفعش تحذفي حسابك الحالي." };
+
+  let service;
+  try { service = createServiceClient(); } catch { return serviceSetupError(); }
+  const { data: target, error: targetError } = await service.from("admins").select("user_id, role").eq("user_id",userId.data).maybeSingle();
+  if (targetError || !target) return { ok:false, error:"المستخدم مش موجود ضمن فريق المتجر." };
+  if (target.role === "owner") {
+    const { count } = await service.from("admins").select("user_id",{count:"exact",head:true}).eq("role","owner");
+    if ((count || 0) <= 1) return { ok:false, error:"ما ينفعش تحذفي آخر مسؤولة كاملة." };
+  }
+  const { error } = await service.auth.admin.deleteUser(userId.data);
+  if (error) return { ok:false, error:"تعذر حذف حساب المستخدم من Supabase Auth." };
+  revalidatePath("/dashboard"); revalidatePath("/dashboard/users");
+  return { ok:true };
 }

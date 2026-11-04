@@ -17,7 +17,13 @@ declare module "@supabase/auth-js" {
   export type User = { id: string; email?: string; [key: string]: unknown };
   export type Session = { access_token: string; refresh_token: string; user: User; [key: string]: unknown };
   export type AuthError = Error & { status?: number; code?: string };
+  export class AuthAdminApi {
+    listUsers(params?: { page?: number; perPage?: number }): Promise<{ data: { users: User[] }; error: AuthError | null }>;
+    createUser(attributes: { email: string; password: string; email_confirm?: boolean }): Promise<{ data: { user: User | null }; error: AuthError | null }>;
+    deleteUser(id: string, shouldSoftDelete?: boolean): Promise<{ data: { user: User | null }; error: AuthError | null }>;
+  }
   export class AuthClient {
+    admin: AuthAdminApi;
     getClaims(jwt?: string): Promise<{ data: { claims: Record<string, unknown> } | null; error: AuthError | null }>;
     getUser(jwt?: string): Promise<{ data: { user: User | null }; error: AuthError | null }>;
     signInWithPassword(credentials: { email: string; password: string }): Promise<{ data: { user: User | null; session: Session | null }; error: AuthError | null }>;

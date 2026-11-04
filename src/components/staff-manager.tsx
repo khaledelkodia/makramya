@@ -1,0 +1,24 @@
+"use client";
+
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Check, LoaderCircle, Plus, Trash2, Users } from "lucide-react";
+import { createStaffUser, deleteStaffUser, updateStaffRole } from "@/app/actions";
+import { staffRoleDescriptions, staffRoleLabels, type StaffRole } from "@/lib/types";
+
+export type StaffUser = { id:string; email:string; role:StaffRole; createdAt:string };
+const roles:StaffRole[]=["owner","manager","products","orders"];
+
+export function StaffManager({staff,currentUserId,setupMessage}:{staff:StaffUser[];currentUserId:string;setupMessage?:string}){
+  const router=useRouter();const form=useRef<HTMLFormElement>(null);const [open,setOpen]=useState(false);const [message,setMessage]=useState("");const [messageIsError,setMessageIsError]=useState(false);const [newRole,setNewRole]=useState<StaffRole>("products");const [busy,startTransition]=useTransition();
+  function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();setMessage("");const formData=new FormData(event.currentTarget);startTransition(async()=>{const result=await createStaffUser(formData);if(result.ok){form.current?.reset();setOpen(false);setMessage("اتضاف المستخدم للفريق. سلّميه كلمة المرور المؤقتة بطريقة آمنة.");setMessageIsError(false);router.refresh();}else{setMessage(result.error||"تعذر إنشاء المستخدم.");setMessageIsError(true);}});}
+  function changeRole(member:StaffUser,role:StaffRole){if(role===member.role)return;startTransition(async()=>{const result=await updateStaffRole(member.id,role);setMessage(result.ok?"اتحدّثت صلاحية المستخدم.":result.error||"تعذر تحديث الدور.");setMessageIsError(!result.ok);if(result.ok)router.refresh();});}
+  function remove(member:StaffUser){if(!window.confirm(`هيتحذف حساب ${member.email} من المتجر نهائياً. تكملي؟`))return;startTransition(async()=>{const result=await deleteStaffUser(member.id);setMessage(result.ok?"اتحذف المستخدم من الفريق وتسجيل الدخول.":result.error||"تعذر حذف المستخدم.");setMessageIsError(!result.ok);if(result.ok)router.refresh();});}
+  return <>
+    <div className="products-toolbar"><div><h2>فريق المتجر</h2><p>أضيفي حسابات للفريق وحددي الصلاحيات المناسبة لكل شخص.</p></div><button className="button button-dark" onClick={()=>setOpen(!open)}><Plus size={15}/>{open?"إلغاء":"أضيفي مستخدم"}</button></div>
+    {setupMessage&&<div className="notice-box">{setupMessage}</div>}{message&&<div className={messageIsError?"form-error":"success-note"} role="status">{message}</div>}
+    {open&&<form ref={form} className="product-form admin-card" onSubmit={submit}><div className="form-heading"><span className="eyebrow">حساب جديد</span><h3>أضيفي شخص للفريق</h3></div><div className="form-grid"><label>البريد الإلكتروني<input name="email" type="email" required autoComplete="email" placeholder="name@example.com" dir="ltr"/></label><label>كلمة مرور مؤقتة<input name="password" type="password" minLength={12} maxLength={128} required autoComplete="new-password" placeholder="12 حرفاً على الأقل" dir="ltr"/></label><label>الدور<select name="role" value={newRole} onChange={event=>setNewRole(event.target.value as StaffRole)}>{roles.map(role=><option value={role} key={role}>{staffRoleLabels[role]}</option>)}</select></label><div className="staff-role-help"><b>صلاحية الدور</b><span>{staffRoleDescriptions[newRole]}</span><small>سلّمي كلمة المرور المؤقتة لصاحبتها بطريقة آمنة.</small></div></div><button disabled={busy} className="button button-dark submit-product">{busy?<LoaderCircle className="spin" size={15}/>:<Check size={15}/>}إنشاء الحساب</button></form>}
+    <div className="admin-card product-list-card staff-list-card">{staff.length?<div className="responsive-table"><table><thead><tr><th>المستخدم</th><th>الصلاحية</th><th>تاريخ الإضافة</th><th>إجراء</th></tr></thead><tbody>{staff.map(member=><tr key={member.id}><td><div className="staff-email"><Users size={16}/><span><b>{member.email}</b>{member.id===currentUserId&&<small>حسابك الحالي</small>}</span></div></td><td><select className="status-select staff-role-select" value={member.role} disabled={busy||member.id===currentUserId} onChange={event=>changeRole(member,event.target.value as StaffRole)} aria-label={`صلاحية ${member.email}`}>{roles.map(role=><option value={role} key={role}>{staffRoleLabels[role]}</option>)}</select></td><td>{new Intl.DateTimeFormat("ar-EG",{dateStyle:"medium"}).format(new Date(member.createdAt))}</td><td><button className="row-actions delete-action" disabled={busy||member.id===currentUserId} onClick={()=>remove(member)} aria-label={`حذف ${member.email}`}><Trash2 size={15}/></button></td></tr>)}</tbody></table></div>:<div className="empty-state"><span>✳</span>لسه مفيش حسابات فريق تانية.</div>}</div>
+    <div className="staff-permissions-grid">{roles.map(role=><article className="admin-card" key={role}><b>{staffRoleLabels[role]}</b><p>{staffRoleDescriptions[role]}</p></article>)}</div>
+  </>;
+}

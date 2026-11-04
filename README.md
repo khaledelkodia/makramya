@@ -20,9 +20,12 @@ Copy-Item .env.example .env.local
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_your_key
 ```
 
-قبل النشر، غيّري `NEXT_PUBLIC_SITE_URL` إلى رابط الدومين النهائي بصيغة `https://...`؛ يُستخدم للروابط الأساسية وملفي sitemap وrobots وبيانات المشاركة المنظمة.
+`SUPABASE_SERVICE_ROLE_KEY` مطلوب لإدارة حسابات فريق المتجر فقط. خذيه من **Project Settings → API Keys** كـ Secret key (`sb_secret_...`) أو مفتاح `service_role` القديم. هذا مفتاح خادم سري: لا تضعي قبله `NEXT_PUBLIC_` ولا ترفعي قيمته إلى GitHub. على Vercel أضيفيه من **Project Settings → Environment Variables**.
+
+قبل النشر، غيّري `NEXT_PUBLIC_SITE_URL` إلى رابط الدومين النهائي بصيغة `https://...`؛ يُستخدم للروابط الأساسية وملفي sitemap وrobots وبيانات المشاركة المنظمة. بعد تغيير أي متغير على Vercel، أعيدي النشر.
 
 ## 2. تهيئة قاعدة Supabase
 
@@ -36,6 +39,8 @@ npx supabase db push
 
 أو افتحي `supabase/migrations/202611040001_initial_schema.sql` وانسخي محتواه إلى **SQL Editor** في لوحة Supabase وشغّليه مرة واحدة. الـ migration ينشئ المنتجات والطلبات وبنودها، صلاحيات RLS، دالة إنشاء طلب تحسب السعر من قاعدة البيانات، وbucket عام لصور المنتجات بسياسة رفع للإدارة فقط. كما يضيف منتجات تجريبية قابلة للتعديل والحذف.
 
+بما إن قاعدة البيانات الأولية مطبّقة بالفعل، شغّلي أيضاً `supabase/migrations/202611040002_staff_roles.sql` مرة واحدة في **SQL Editor**. يضيف أدوار `owner` و`manager` و`products` و`orders` وسياسات RLS التي تقصر كل صلاحية على مهامها. الحساب الموجود يتحول تلقائياً إلى `owner`.
+
 ## 3. إنشاء حساب صاحبة المتجر
 
 من Supabase **Authentication → Users → Add user**، أنشئي مستخدماً بالبريد وكلمة مرور تختاريهما. بعدها شغّلي هذا الاستعلام من **SQL Editor** بعد استبدال البريد:
@@ -46,7 +51,7 @@ select id from auth.users where email = 'owner@example.com'
 on conflict (user_id) do nothing;
 ```
 
-تسجيل الدخول متاح في `/login`، والداشبورد في `/dashboard`. لا يوجد تسجيل عام للعملاء.
+تسجيل الدخول متاح في `/login`، والداشبورد في `/dashboard`. صاحبة الحساب `owner` تقدر تضيف مستخدمين وتغيّر أدوارهم أو تحذفهم من `/dashboard/users`. إدارة المنتجات وإضافة الصور متاحة لأدوار `owner` و`manager` و`products`؛ الطلبات متاحة لأدوار `owner` و`manager` و`orders`. لا يوجد تسجيل عام للعملاء.
 
 ## 4. تشغيل المشروع
 

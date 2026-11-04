@@ -12,7 +12,7 @@ export function ProductManager({ products }: { products:Product[] }) {
   const form=useRef<HTMLFormElement>(null);const [open,setOpen]=useState(false);const [message,setMessage]=useState("");const [busy,startTransition]=useTransition();
   async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();setMessage("");const result=await createProduct(new FormData(event.currentTarget));if(result.ok){form.current?.reset();setOpen(false);setMessage("اتضاف المنتج للمتجر.");}else setMessage(result.error||"تعذر حفظ المنتج.");}
   function toggle(product:Product){startTransition(async()=>{const result=await setProductStatus(product.id,product.status==="active"?"draft":"active");setMessage(result.ok?"اتحدّث ظهور المنتج.":result.error||"");});}
-  function remove(product:Product){if(!window.confirm(`تحبي تحذفي «${product.name}»؟`))return;startTransition(async()=>{const result=await deleteProduct(product.id);setMessage(result.ok?"اتحذف المنتج.":result.error||"");});}
+  function remove(product:Product){if(!window.confirm(`تحبي تحذفي «${product.name}»؟`))return;startTransition(async()=>{const result=await deleteProduct(product.id);setMessage(result.ok?(result.warning||"اتحذف المنتج."):result.error||"");});}
   return <>
     <div className="products-toolbar"><div><h2>منتجاتك</h2><p>أضيفي القطع الجديدة وحدّثي تفاصيل المعروض في المتجر.</p></div><button className="button button-dark" onClick={()=>setOpen(!open)}><Plus size={15}/>{open?"إلغاء":"أضيفي منتج"}</button></div>
     {message&&<div className="success-note" role="status">{message}</div>}

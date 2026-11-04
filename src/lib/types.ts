@@ -36,10 +36,24 @@ export type Order = {
 };
 export type OrderItem = { id: string; order_id: string; product_id: string | null; product_name: string; unit_price: number; color: string; size: string; quantity: number; line_total: number };
 
+export type StaffRole = "owner" | "manager" | "products" | "orders";
+export const staffRoleLabels: Record<StaffRole, string> = {
+  owner: "مسؤولة كاملة",
+  manager: "مديرة المتجر",
+  products: "إدارة المنتجات",
+  orders: "إدارة الطلبات",
+};
+export const staffRoleDescriptions: Record<StaffRole, string> = {
+  owner: "كل الصلاحيات، بما فيها إدارة المستخدمين.",
+  manager: "إدارة المنتجات والطلبات، من غير إدارة المستخدمين.",
+  products: "إضافة المنتجات وحذفها ورفع صورها فقط.",
+  orders: "عرض الطلبات وتحديث حالتها فقط.",
+};
+
 export type Database = {
   public: {
     Tables: {
-      admins: { Row: { user_id: string; created_at: string }; Insert: { user_id: string; created_at?: string }; Update: never; Relationships: [] };
+      admins: { Row: { user_id: string; role: StaffRole; created_at: string }; Insert: { user_id: string; role: StaffRole; created_at?: string }; Update: Partial<{ role: StaffRole }>; Relationships: [] };
       products: { Row: Product; Insert: Omit<Product, "id" | "created_at" | "updated_at"> & { id?: string; created_at?: string; updated_at?: string }; Update: Partial<Omit<Product, "id" | "created_at">>; Relationships: [] };
       orders: { Row: Order; Insert: Omit<Order, "id" | "order_number" | "created_at" | "updated_at">; Update: Partial<Pick<Order, "status" | "updated_at">>; Relationships: [] };
       order_items: { Row: OrderItem; Insert: Omit<OrderItem, "id">; Update: Partial<Pick<OrderItem, "color" | "size" | "quantity">>; Relationships: [] };
