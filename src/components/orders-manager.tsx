@@ -1,0 +1,21 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { ArrowUpLeft, Search } from "lucide-react";
+import { setOrderStatus } from "@/app/actions";
+import type { Order, OrderItem, OrderStatus } from "@/lib/types";
+
+const egp=(n:number)=>new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(n);
+const labels:Record<OrderStatus,string>={new:"جديد",confirmed:"تم التأكيد",in_progress:"قيد التنفيذ",shipped:"تم الشحن",completed:"مكتمل",cancelled:"ملغي"};
+const statuses:OrderStatus[]=["new","confirmed","in_progress","shipped","completed"];
+
+export function OrdersManager({orders,items}:{orders:Order[];items:OrderItem[]}){
+  const [filter,setFilter]=useState("all"),[query,setQuery]=useState(""),[selected,setSelected]=useState<Order|null>(null),[error,setError]=useState(""),[busy,startTransition]=useTransition();
+  const visible=useMemo(()=>orders.filter(order=>(filter==="all"||order.status===filter)&&`${order.order_number} ${order.customer_name} ${order.phone}`.includes(query.trim())),[orders,filter,query]);
+  function changeStatus(id:string,status:OrderStatus){startTransition(async()=>{const result=await setOrderStatus(id,status);setError(result.ok?"":result.error||"تعذر تحديث الطلب.");if(selected?.id===id)setSelected({...selected,status});});}
+  return <><div className="products-toolbar orders-toolbar"><div><h2>الطلبات</h2><p>كل طلب جديد بيظهر هنا عشان تتابعيه خطوة بخطوة.</p></div><div className="order-count-pill">{new Intl.NumberFormat("ar-EG").format(orders.length)} طلب</div></div>{error&&<div className="form-error">{error}</div>}
+    <div className="orders-filters"><label className="search-box"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="بحث بالاسم أو رقم الطلب أو الموبايل"/></label><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">كل الحالات</option>{statuses.map(status=><option value={status} key={status}>{labels[status]}</option>)}</select></div>
+    <div className="admin-card product-list-card">{visible.length?<div className="responsive-table"><table><thead><tr><th>رقم الطلب</th><th>العميلة</th><th>التاريخ</th><th>الإجمالي</th><th>الحالة</th><th>التفاصيل</th></tr></thead><tbody>{visible.map(order=><tr key={order.id}><td>MK-{order.order_number}</td><td><b>{order.customer_name}</b><small className="table-subline">{order.phone}</small></td><td>{new Intl.DateTimeFormat("ar-EG",{dateStyle:"medium"}).format(new Date(order.created_at))}</td><td>{egp(Number(order.total))}</td><td><select className={`status-select status-${order.status}`} value={order.status} disabled={busy} onChange={e=>changeStatus(order.id,e.target.value as OrderStatus)}>{statuses.map(status=><option value={status} key={status}>{labels[status]}</option>)}</select></td><td><button className="details-link" onClick={()=>setSelected(order)}>عرض الطلب <ArrowUpLeft size={13}/></button></td></tr>)}</tbody></table></div>:<div className="empty-state"><span>✳</span>{orders.length?"مفيش طلبات مطابقة للبحث.":"لسه مفيش طلبات. أول طلب من الموقع هيظهر هنا."}</div>}</div>
+    {selected&&<div className="modal-wrap open" onClick={e=>{if(e.target===e.currentTarget)setSelected(null)}}><section className="modal order-detail-modal"><button className="close-button" onClick={()=>setSelected(null)} aria-label="إغلاق">×</button><span className="eyebrow">تفاصيل الطلب MK-{selected.order_number}</span><h2>{selected.customer_name}</h2><p>{selected.phone} · {selected.address}</p><div className="order-detail-items">{items.filter(item=>item.order_id===selected.id).map(item=><div key={item.id}><span><b>{item.product_name}</b><small>{item.color} · {item.size} · {item.quantity} قطعة</small></span><strong>{egp(Number(item.line_total))}</strong></div>)}</div>{selected.notes&&<div className="customer-notes"><b>ملاحظات</b><p>{selected.notes}</p></div>}<div className="order-total"><b>الإجمالي</b><strong>{egp(Number(selected.total))}</strong></div><label className="option-label" htmlFor="detail-status">حالة الطلب</label><select id="detail-status" className="admin-select" value={selected.status} disabled={busy} onChange={e=>changeStatus(selected.id,e.target.value as OrderStatus)}>{statuses.map(status=><option value={status} key={status}>{labels[status]}</option>)}</select></section></div>}
+  </>;
+}
