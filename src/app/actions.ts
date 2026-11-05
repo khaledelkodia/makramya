@@ -208,6 +208,7 @@ const deliverySettingsSchema = z.object({
   min_delivery_days:z.coerce.number().int().min(1).max(90),
   max_delivery_days:z.coerce.number().int().min(1).max(90),
   customer_note:z.string().trim().max(1000).default(""),
+  allow_reference_image:z.preprocess(value=>value==="on"||value===true,z.boolean().default(false)),
 }).superRefine((data,context)=>{
   const assigned=new Set<string>();
   data.delivery_zones.forEach((zone,index)=>zone.governorates.forEach(governorate=>{
@@ -226,7 +227,7 @@ export async function saveDeliverySettings(formData:FormData):Promise<{ok:boolea
     id:"default",base_fee:data.delivery_zones[0]?.fee??0,...data,coverage_area:data.delivery_zones.flatMap(zone=>zone.governorates).join("، "),updated_by:user.id,updated_at:new Date().toISOString(),
   },{onConflict:"id"});
   if(error){
-    if(error.code==="42P01"||error.code==="PGRST205")return {ok:false,error:"شغّلي ترحيل إعدادات التوصيل في Supabase أولاً."};
+    if(error.code==="42P01"||error.code==="PGRST205"||error.code==="PGRST204"||error.code==="42703")return {ok:false,error:"شغّلي ترحيل إعدادات التوصيل والصور المرجعية في Supabase أولاً."};
     return {ok:false,error:"تعذر حفظ إعدادات التوصيل. راجعي صلاحيات Supabase."};
   }
   revalidatePath("/dashboard/delivery");

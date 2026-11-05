@@ -7,7 +7,7 @@ export async function getDeliverySettings() {
   if (!isSupabaseConfigured) return defaultDeliverySettings;
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.from("delivery_settings").select("id,base_fee,delivery_zones,free_shipping_threshold,min_delivery_days,max_delivery_days,coverage_area,customer_note,updated_at").eq("id", "default").maybeSingle();
+    const { data, error } = await supabase.from("delivery_settings").select("id,base_fee,delivery_zones,free_shipping_threshold,min_delivery_days,max_delivery_days,coverage_area,customer_note,allow_reference_image,updated_at").eq("id", "default").maybeSingle();
     if (error || !data) return defaultDeliverySettings;
     const delivery_zones=data.delivery_zones.map(zone=>({...zone,fee:Number(zone.fee)}));
     return {

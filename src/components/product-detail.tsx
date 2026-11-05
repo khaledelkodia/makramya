@@ -12,6 +12,8 @@ import { CustomerAuthForm } from "@/components/customer-auth-form";
 import { emptyCustomerProfile, profileToMetadata, type CustomerProfile } from "@/lib/customer-profile";
 import { useCustomerSession } from "@/hooks/use-customer-session";
 import { CouponField } from "@/components/coupon-field";
+import { CustomerReferenceImageInput } from "@/components/customer-reference-image-input";
+import { uploadCustomerReference } from "@/lib/customer-reference";
 
 const egp=(n:number)=>new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(n);
 const effectivePrice=(product:Product)=>product.sale_price&&product.sale_price<product.price?product.sale_price:product.price;
@@ -63,26 +65,36 @@ export function ProductDetail({product,categorySlug,deliverySettings}:{product:P
     if(size.includes("مخصوص")&&(!width||!height)){setMessage("اكتبي العرض والطول عشان نعملها على مقاسك.");return;}
     setBusy(true);setMessage("");
     const form=new FormData(event.currentTarget);const finalSize=size.includes("مخصوص")?`${width} × ${height} سم`:size;
+    const candidate=form.get("reference_image");
+    const referenceFile=deliverySettings.allow_reference_image&&candidate instanceof File&&candidate.size?candidate:null;
+    let referenceImagePath:string|null=null;
     const submittedProfile:CustomerProfile={fullName:String(form.get("customer")||"").trim(),phone:String(form.get("phone")||"").trim(),address:String(form.get("address")||"").trim(),governorate};
     const submittedEmail=(accountEmail||String(form.get("customer_email")||"")).trim().toLowerCase();
-    const orderArgs={p_customer_name:submittedProfile.fullName,p_phone:submittedProfile.phone,p_address:submittedProfile.address,p_governorate:governorate,p_customer_email:submittedEmail,p_coupon_code:couponCode,p_notes:String(form.get("notes")||""),p_items:[{product_id:product.id,color:product.colors[colorIndex].name,size:finalSize,quantity}]};
     try{
-      const supabase=createClient();let {data:orderId,error}=await supabase.rpc("place_order",orderArgs);let accountsReady=true;
+      const supabase=createClient();
+      if(referenceFile)referenceImagePath=await uploadCustomerReference(supabase,referenceFile);
+      const orderArgs={p_customer_name:submittedProfile.fullName,p_phone:submittedProfile.phone,p_address:submittedProfile.address,p_governorate:governorate,p_customer_email:submittedEmail,p_coupon_code:couponCode,p_notes:String(form.get("notes")||""),p_reference_image_path:referenceImagePath,p_items:[{product_id:product.id,color:product.colors[colorIndex].name,size:finalSize,quantity}]};
+      let {data:orderId,error}=await supabase.rpc("place_order",orderArgs);let accountsReady=true;
       if(error?.code==="PGRST202"){
-        if(couponCode)throw Object.assign(new Error("migration required"),{code:"coupon_migration_required"});
-        const customerLegacy=await supabase.rpc("place_order",{p_customer_name:orderArgs.p_customer_name,p_phone:orderArgs.p_phone,p_address:orderArgs.p_address,p_governorate:orderArgs.p_governorate,p_customer_email:submittedEmail,p_notes:orderArgs.p_notes,p_items:orderArgs.p_items});
-        orderId=customerLegacy.data;error=customerLegacy.error;
+        if(referenceImagePath)throw Object.assign(new Error("migration required"),{code:"reference_migration_required"});
+        const couponLegacy=await supabase.rpc("place_order",{p_customer_name:orderArgs.p_customer_name,p_phone:orderArgs.p_phone,p_address:orderArgs.p_address,p_governorate:orderArgs.p_governorate,p_customer_email:submittedEmail,p_coupon_code:couponCode,p_notes:orderArgs.p_notes,p_items:orderArgs.p_items});
+        orderId=couponLegacy.data;error=couponLegacy.error;
         if(error?.code==="PGRST202"){
-          accountsReady=false;
-          const legacy=await supabase.rpc("place_order",{p_customer_name:orderArgs.p_customer_name,p_phone:orderArgs.p_phone,p_address:orderArgs.p_address,p_governorate:orderArgs.p_governorate,p_notes:orderArgs.p_notes,p_items:orderArgs.p_items});
-          orderId=legacy.data;error=legacy.error;
+          if(couponCode)throw Object.assign(new Error("migration required"),{code:"coupon_migration_required"});
+          const customerLegacy=await supabase.rpc("place_order",{p_customer_name:orderArgs.p_customer_name,p_phone:orderArgs.p_phone,p_address:orderArgs.p_address,p_governorate:orderArgs.p_governorate,p_customer_email:submittedEmail,p_notes:orderArgs.p_notes,p_items:orderArgs.p_items});
+          orderId=customerLegacy.data;error=customerLegacy.error;
+          if(error?.code==="PGRST202"){
+            accountsReady=false;
+            const legacy=await supabase.rpc("place_order",{p_customer_name:orderArgs.p_customer_name,p_phone:orderArgs.p_phone,p_address:orderArgs.p_address,p_governorate:orderArgs.p_governorate,p_notes:orderArgs.p_notes,p_items:orderArgs.p_items});
+            orderId=legacy.data;error=legacy.error;
+          }
         }
       }
       if(error)throw error;if(!orderId)throw new Error("order id missing");
       setProfile(submittedProfile);
       if(signedIn)void supabase.auth.updateUser({data:profileToMetadata(submittedProfile)}).then(({error:profileError})=>{if(profileError)console.error("Unable to save customer contact details.",profileError);});
       setPendingEmail(accountsReady?submittedEmail:"");setPendingProfile(submittedProfile);setCustomerAccountsReady(accountsReady);setTrackingOrderId(orderId);setMessage("طلبك اتسجل بالفعل قبل إنشاء الحساب. تابعي حالته من الرابط.");setFormOpen(false);
-    }catch(error){const code=(error as {code?:string})?.code;setMessage(code==="coupon_migration_required"?"شغّلي ترحيل العروض والكوبونات في Supabase قبل استخدام الكود.":code==="PGRST202"?"تعذر تسجيل الطلب؛ تأكدي من تحديث قاعدة البيانات أولاً.":"ما قدرناش نسجل الطلب. جرّبي تاني أو كلمينا.");console.error(error);}
+    }catch(error){const code=(error as {code?:string})?.code;setMessage(code==="reference_file_type"||code==="reference_file_size"||code==="reference_upload_failed"?(error as Error).message:code==="reference_migration_required"?"شغّلي ترحيل صور العملاء في Supabase قبل إرسال صورة مع الطلب.":code==="coupon_migration_required"?"شغّلي ترحيل العروض والكوبونات في Supabase قبل استخدام الكود.":code==="PGRST202"?"تعذر تسجيل الطلب؛ تأكدي من تحديث قاعدة البيانات أولاً.":"ما قدرناش نسجل الطلب. جرّبي تاني أو كلمينا.");console.error(error);}
     finally{setBusy(false);}
   }
   return <>
@@ -105,7 +117,7 @@ export function ProductDetail({product,categorySlug,deliverySettings}:{product:P
           <label className="consent-field checkout-consent"><input type="checkbox" checked={cartConsent} onChange={event=>updateRecoveryConsent(event.target.checked)}/><span>أوافق على حفظ بيانات التواصل عشان المتجر يقدر يتواصل معي لو ما كملتش الطلب أو بخصوص العروض</span></label>
           {recoverySaved&&<small className="recovery-saved-note">اتحفظت السلة على حسابك. تقدري تكملي الطلب بعدين.</small>}
           <input name="address" required minLength={5} maxLength={500} autoComplete="street-address" value={profile.address} onChange={event=>setProfile(current=>({...current,address:event.target.value}))} placeholder="عنوان التوصيل بالتفصيل"/>
-          <textarea name="notes" maxLength={1000} placeholder="ملاحظات إضافية (اختياري)"/><button className="button button-dark" disabled={busy}>{busy?"جاري تسجيل الطلب...":"أكدي الطلب"}<ArrowRight size={15}/></button>
+          <textarea name="notes" maxLength={1000} placeholder="ملاحظات إضافية (اختياري)"/>{deliverySettings.allow_reference_image&&<CustomerReferenceImageInput/>}<button className="button button-dark" disabled={busy}>{busy?"جاري تسجيل الطلب...":"أكدي الطلب"}<ArrowRight size={15}/></button>
         </form>}
       </section></div><section className="pdp-story"><span className="eyebrow">قطعة معمولة مخصوص</span><h2>كل عقدة <em>ليها حكاية.</em></h2><p>اختاري اللون والمقاس اللي يناسب بيتك. بنبدأ التنفيذ بعد ما نأكد معاكي تفاصيل الطلب، وبنهتم بكل عقدة لحد ما القطعة تبقى جاهزة لبيتك.</p><Link href={`/category/${categorySlug}`} className="text-link">اكتشفي باقي {product.category} <span>←</span></Link></section></main>
     <footer className="footer"><Link className="brand footer-brand" href="/"><span className="brand-mark">م</span><span className="brand-word">مكرمية<small>حرفة يدوية بلمسة من البيت</small></span></Link><p>تفاصيل بتتعمل بحب، لبيوت بتتحب.</p><div><Link href="/categories">تسوقي الأصناف</Link><Link href="/account/login">حسابي وطلباتي</Link><Link href="/#story">حكايتنا</Link><Link href="/#custom">طلب مخصوص</Link></div><small>© {new Date().getFullYear()} مكرمية. كل قطعة بتحكي حكاية.</small></footer>

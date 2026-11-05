@@ -63,6 +63,7 @@ export function DeliverySettingsForm({settings,setupMessage}:{settings:DeliveryS
         <label>أقل مدة للتوصيل (أيام)<input name="min_delivery_days" type="number" min="1" max="90" step="1" defaultValue={settings.min_delivery_days} required/></label>
         <label>أقصى مدة للتوصيل (أيام)<input name="max_delivery_days" type="number" min="1" max="90" step="1" defaultValue={settings.max_delivery_days} required/></label>
         <label className="full-field">ملاحظة للعميلة<textarea name="customer_note" maxLength={1000} rows={3} defaultValue={settings.customer_note}/><small>تظهر في السلة وصفحة المنتج قبل إرسال الطلب.</small></label>
+        <label className="checkbox-field full-field delivery-reference-option"><input type="checkbox" name="allow_reference_image" defaultChecked={settings.allow_reference_image}/><span><b>السماح برفع صورة مرجعية للطلب</b><small>عند التفعيل، تظهر للعميلة خانة اختيار صورة في صفحة إتمام الطلب. الصور خاصة ولا يراها إلا فريق الطلبات.</small></span></label>
       </div>
       <button className="button button-dark submit-product" disabled={busy||Boolean(setupMessage)}>{busy?<LoaderCircle className="spin" size={15}/>:<Check size={15}/>}حفظ إعدادات التوصيل</button>
     </form>

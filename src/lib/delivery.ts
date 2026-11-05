@@ -15,6 +15,7 @@ export const defaultDeliverySettings: DeliverySettings = {
   max_delivery_days: 7,
   coverage_area: "جميع محافظات مصر",
   customer_note: "هنكلمك نأكد تفاصيل التوصيل قبل تجهيز الطلب.",
+  allow_reference_image: false,
   updated_by: null,
   updated_at: "",
 };

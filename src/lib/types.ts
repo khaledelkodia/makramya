@@ -35,6 +35,7 @@ export type Order = {
   subtotal: number;
   discount_amount: number;
   coupon_code: string | null;
+  reference_image_path: string | null;
   delivery_fee: number;
   total: number;
   created_at: string;
@@ -51,6 +52,7 @@ export type DeliverySettings = {
   max_delivery_days: number;
   coverage_area: string;
   customer_note: string;
+  allow_reference_image: boolean;
   updated_by: string | null;
   updated_at: string;
 };
@@ -125,6 +127,7 @@ export type Database = {
     Functions: {
       place_order: { Args:
         | { p_customer_name: string; p_phone: string; p_address: string; p_governorate:string; p_customer_email:string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] }
+        | { p_customer_name:string; p_phone:string; p_address:string; p_governorate:string; p_customer_email:string; p_coupon_code:string; p_notes:string; p_reference_image_path:string|null; p_items:{product_id:string;color:string;size:string;quantity:number}[] }
         | { p_customer_name:string; p_phone:string; p_address:string; p_governorate:string; p_customer_email:string; p_coupon_code:string; p_notes:string; p_items:{product_id:string;color:string;size:string;quantity:number}[] }
         | { p_customer_name: string; p_phone: string; p_address: string; p_governorate:string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] };
         Returns: string };

@@ -14,6 +14,8 @@ import { CustomerAuthForm } from "@/components/customer-auth-form";
 import { emptyCustomerProfile, profileToMetadata, type CustomerProfile } from "@/lib/customer-profile";
 import { useCustomerSession } from "@/hooks/use-customer-session";
 import { CouponField } from "@/components/coupon-field";
+import { CustomerReferenceImageInput } from "@/components/customer-reference-image-input";
+import { uploadCustomerReference } from "@/lib/customer-reference";
 
 const egp = (value: number) => new Intl.NumberFormat("ar-EG", { style:"currency", currency:"EGP", maximumFractionDigits:0 }).format(value);
 const LOCAL_CART_KEY="makramya-cart-v1";
@@ -91,21 +93,30 @@ export function Storefront({ products, initialCategory, categoryDescription, cat
     event.preventDefault(); if (!isSupabaseConfigured) { notify("اربطوا المشروع بـ Supabase الأول عشان نستقبل الطلب"); return; }
     if(!governorate){notify("اختاري محافظة التوصيل عشان نحدد الرسوم.");return;}
     setBusy(true); const form = new FormData(event.currentTarget);
+    const candidate=form.get("reference_image");
+    const referenceFile=deliverySettings.allow_reference_image&&candidate instanceof File&&candidate.size?candidate:null;
+    let referenceImagePath:string|null=null;
     const payload = cart.map(item => ({ product_id:item.product.id, color:item.color.name, size:item.size, quantity:item.quantity }));
     try {
       const supabase = createClient();
+      if(referenceFile)referenceImagePath=await uploadCustomerReference(supabase,referenceFile);
       const submittedProfile:CustomerProfile={fullName:String(form.get("customer")||"").trim(),phone:String(form.get("phone")||"").trim(),address:String(form.get("address")||"").trim(),governorate};
       const submittedEmail=(accountEmail||String(form.get("customer_email")||"")).trim().toLowerCase();
-      const orderArgs={p_customer_name:submittedProfile.fullName,p_phone:submittedProfile.phone,p_address:submittedProfile.address,p_governorate:governorate,p_customer_email:submittedEmail,p_coupon_code:couponCode,p_notes:String(form.get("notes")||""),p_items:payload};
+      const orderArgs={p_customer_name:submittedProfile.fullName,p_phone:submittedProfile.phone,p_address:submittedProfile.address,p_governorate:governorate,p_customer_email:submittedEmail,p_coupon_code:couponCode,p_notes:String(form.get("notes")||""),p_reference_image_path:referenceImagePath,p_items:payload};
       let {data:orderId,error}=await supabase.rpc("place_order",orderArgs);let accountsReady=true;
       if(error?.code==="PGRST202"){
-        if(couponCode)throw Object.assign(new Error("migration required"),{code:"coupon_migration_required"});
-        const customerLegacy=await supabase.rpc("place_order",{p_customer_name:orderArgs.p_customer_name,p_phone:orderArgs.p_phone,p_address:orderArgs.p_address,p_governorate:orderArgs.p_governorate,p_customer_email:submittedEmail,p_notes:orderArgs.p_notes,p_items:orderArgs.p_items});
-        orderId=customerLegacy.data;error=customerLegacy.error;
+        if(referenceImagePath)throw Object.assign(new Error("migration required"),{code:"reference_migration_required"});
+        const couponLegacy=await supabase.rpc("place_order",{p_customer_name:orderArgs.p_customer_name,p_phone:orderArgs.p_phone,p_address:orderArgs.p_address,p_governorate:orderArgs.p_governorate,p_customer_email:submittedEmail,p_coupon_code:couponCode,p_notes:orderArgs.p_notes,p_items:orderArgs.p_items});
+        orderId=couponLegacy.data;error=couponLegacy.error;
         if(error?.code==="PGRST202"){
-          accountsReady=false;
-          const legacy=await supabase.rpc("place_order",{p_customer_name:orderArgs.p_customer_name,p_phone:orderArgs.p_phone,p_address:orderArgs.p_address,p_governorate:orderArgs.p_governorate,p_notes:orderArgs.p_notes,p_items:orderArgs.p_items});
-          orderId=legacy.data;error=legacy.error;
+          if(couponCode)throw Object.assign(new Error("migration required"),{code:"coupon_migration_required"});
+          const customerLegacy=await supabase.rpc("place_order",{p_customer_name:orderArgs.p_customer_name,p_phone:orderArgs.p_phone,p_address:orderArgs.p_address,p_governorate:orderArgs.p_governorate,p_customer_email:submittedEmail,p_notes:orderArgs.p_notes,p_items:orderArgs.p_items});
+          orderId=customerLegacy.data;error=customerLegacy.error;
+          if(error?.code==="PGRST202"){
+            accountsReady=false;
+            const legacy=await supabase.rpc("place_order",{p_customer_name:orderArgs.p_customer_name,p_phone:orderArgs.p_phone,p_address:orderArgs.p_address,p_governorate:orderArgs.p_governorate,p_notes:orderArgs.p_notes,p_items:orderArgs.p_items});
+            orderId=legacy.data;error=legacy.error;
+          }
         }
       }
       if (error) throw error;
@@ -113,7 +124,7 @@ export function Storefront({ products, initialCategory, categoryDescription, cat
       setProfile(submittedProfile);
       if(signedIn)void supabase.auth.updateUser({data:profileToMetadata(submittedProfile)}).then(({error:profileError})=>{if(profileError)console.error("Unable to save customer contact details.",profileError);});
       setPendingEmail(accountsReady?submittedEmail:"");setPendingProfile(submittedProfile);setCustomerAccountsReady(accountsReady);setCart([]);setCheckoutOpen(false);setCartOpen(false);setTrackingOrderId(orderId);notify("طلبك اتسجل، هتلاقي رابط المتابعة تحت");
-    } catch (error) { const code=(error as {code?:string})?.code; notify(code==="coupon_migration_required"?"شغّلي ترحيل العروض والكوبونات في Supabase قبل استخدام الكود.":code==="PGRST202"?"شغّلي ترحيل حسابات العملاء في Supabase قبل استقبال الطلبات.":"حصلت مشكلة في الطلب. جرّبي تاني أو كلمينا."); console.error(error); }
+    } catch (error) { const code=(error as {code?:string})?.code; notify(code==="reference_file_type"||code==="reference_file_size"?(error as Error).message:code==="reference_upload_failed"?(error as Error).message:code==="reference_migration_required"?"شغّلي ترحيل صور العملاء في Supabase قبل إرسال صورة مع الطلب.":code==="coupon_migration_required"?"شغّلي ترحيل العروض والكوبونات في Supabase قبل استخدام الكود.":code==="PGRST202"?"شغّلي ترحيل حسابات العملاء في Supabase قبل استقبال الطلبات.":"حصلت مشكلة في الطلب. جرّبي تاني أو كلمينا."); console.error(error); }
     finally { setBusy(false); }
   }
   return <>
@@ -155,7 +166,7 @@ export function Storefront({ products, initialCategory, categoryDescription, cat
     {checkoutOpen&&<div className="modal-wrap open" onClick={e=>{if(e.target===e.currentTarget)setCheckoutOpen(false)}}>
       <div className="modal"><button className="close-button" onClick={()=>setCheckoutOpen(false)} aria-label="إغلاق"><X/></button><span className="eyebrow">خطوة واحدة وتبقى ليكي</span><h2>بيانات الطلب</h2><p>هنكلمك نأكد كل التفاصيل قبل ما نبدأ الشغل.</p>
         <div className="admin-card summary-card"><label className="delivery-governorate-select">محافظة التوصيل<select value={governorate} onChange={event=>setGovernorate(event.target.value)}><option value="">اختاري المحافظة</option>{availableGovernorates.map(item=><option key={item} value={item}>{item}</option>)}</select></label>{cart.map((item,index)=><div key={index}>{item.product.name} · {item.color.name} · {item.size} × {item.quantity}</div>)}<hr/><CouponField subtotal={total} initialCode={couponCode} onApplied={(code,discount)=>{setCouponCode(code);setCouponDiscount(discount);}}/><div className="delivery-cost-summary checkout-delivery-summary"><div><span>قيمة المنتجات</span><b>{egp(total)}</b></div>{appliedDiscount>0&&<div className="coupon-discount-row"><span>خصم الكوبون {couponCode}</span><b>− {egp(appliedDiscount)}</b></div>}<div><span>رسوم التوصيل</span><b>{deliveryFee===null?"اختاري المحافظة":deliveryFee===0?"مجاني":egp(deliveryFee)}</b></div><div className="delivery-total"><span>الإجمالي المتوقع</span><b>{totalWithDelivery===null?"اختاري المحافظة":egp(totalWithDelivery)}</b></div><small>{governorate?`التوصيل إلى ${governorate}`:"اختاري المحافظة لمعرفة الرسوم"} · {deliveryWindow(deliverySettings)}</small></div></div>
-        <form className="order-form" onSubmit={submitOrder}><input type="hidden" name="governorate" value={governorate}/><input name="customer" required minLength={2} maxLength={120} autoComplete="name" value={profile.fullName} onChange={event=>setProfile(current=>({...current,fullName:event.target.value}))} placeholder="اسمك بالكامل"/><input name="phone" type="tel" required minLength={7} maxLength={30} autoComplete="tel" value={profile.phone} onChange={event=>setProfile(current=>({...current,phone:event.target.value}))} placeholder="رقم الموبايل"/><input name="customer_email" type="email" required maxLength={254} autoComplete="email" value={accountEmail||checkoutEmail} readOnly={Boolean(accountEmail)} onChange={event=>setCheckoutEmail(event.target.value)} placeholder="البريد الإلكتروني لاسترجاع طلباتك"/><small className="checkout-email-note">{signedIn?"بياناتك محفوظة. غيري العنوان أو الرقم لو هتطلبي توصيل لمكان أو رقم جديد.":"بعد إنشاء الحساب هتتحفظ بياناتك عشان متكتبيهاش تاني."}</small><label className="consent-field checkout-consent"><input type="checkbox" checked={cartConsent} onChange={event=>updateCartConsent(event.target.checked)}/><span>أوافق على حفظ بيانات التواصل عشان المتجر يقدر يتواصل معي لو ما كملتش الطلب أو بخصوص العروض</span></label><input name="address" required minLength={5} maxLength={500} autoComplete="street-address" value={profile.address} onChange={event=>setProfile(current=>({...current,address:event.target.value}))} placeholder="عنوان التوصيل بالتفصيل"/><textarea name="notes" maxLength={1000} placeholder="ملاحظات إضافية (اختياري)"/><button className="button button-dark" disabled={busy}>{busy?"جاري تسجيل الطلب...":"أكدي الطلب"} <ArrowLeft size={15}/></button></form>
+        <form className="order-form" onSubmit={submitOrder}><input type="hidden" name="governorate" value={governorate}/><input name="customer" required minLength={2} maxLength={120} autoComplete="name" value={profile.fullName} onChange={event=>setProfile(current=>({...current,fullName:event.target.value}))} placeholder="اسمك بالكامل"/><input name="phone" type="tel" required minLength={7} maxLength={30} autoComplete="tel" value={profile.phone} onChange={event=>setProfile(current=>({...current,phone:event.target.value}))} placeholder="رقم الموبايل"/><input name="customer_email" type="email" required maxLength={254} autoComplete="email" value={accountEmail||checkoutEmail} readOnly={Boolean(accountEmail)} onChange={event=>setCheckoutEmail(event.target.value)} placeholder="البريد الإلكتروني لاسترجاع طلباتك"/><small className="checkout-email-note">{signedIn?"بياناتك محفوظة. غيري العنوان أو الرقم لو هتطلبي توصيل لمكان أو رقم جديد.":"بعد إنشاء الحساب هتتحفظ بياناتك عشان متكتبيهاش تاني."}</small><label className="consent-field checkout-consent"><input type="checkbox" checked={cartConsent} onChange={event=>updateCartConsent(event.target.checked)}/><span>أوافق على حفظ بيانات التواصل عشان المتجر يقدر يتواصل معي لو ما كملتش الطلب أو بخصوص العروض</span></label><input name="address" required minLength={5} maxLength={500} autoComplete="street-address" value={profile.address} onChange={event=>setProfile(current=>({...current,address:event.target.value}))} placeholder="عنوان التوصيل بالتفصيل"/><textarea name="notes" maxLength={1000} placeholder="ملاحظات إضافية (اختياري)"/>{deliverySettings.allow_reference_image&&<CustomerReferenceImageInput/>}<button className="button button-dark" disabled={busy}>{busy?"جاري تسجيل الطلب...":"أكدي الطلب"} <ArrowLeft size={15}/></button></form>
       </div>
     </div>}
     {trackingOrderId&&<div className="modal-wrap open" onClick={event=>{if(event.target===event.currentTarget)setTrackingOrderId(null)}}><section className="modal order-success-modal"><button className="close-button" onClick={()=>setTrackingOrderId(null)} aria-label="إغلاق"><X/></button><span className="eyebrow">تم حفظ الطلب فورًا</span><h2>طلبك <em>اتسجل.</em></h2><p>الطلب اتسجل قبل إنشاء الحساب. تقدري تتابعيه دلوقتي، والحساب اختياري عشان تلاقي كل طلباتك بعدين.</p><Link className="button button-dark" href={`/track/${trackingOrderId}`}>تابعي حالة الطلب <ArrowLeft size={15}/></Link><button className="track-copy-button" onClick={async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/track/${trackingOrderId}`);notify("اتنسخ رابط المتابعة")}catch{notify("افتحي رابط المتابعة واحفظيه")}}}>انسخي رابط المتابعة</button>{signedIn?<Link className="button customer-order-track-link" href="/account">ادخلي على حسابك وطلباتك <ArrowLeft size={15}/></Link>:customerAccountsReady?<CustomerAuthForm initialEmail={pendingEmail} lockEmail initialMode="signup" initialProfile={pendingProfile} compact/>:<p className="customer-account-pending">الطلب اتسجل. إنشاء الحساب هيتاح بعد تفعيل قاعدة البيانات؛ احتفظي برابط متابعة الطلب.</p>}</section></div>}
