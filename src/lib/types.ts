@@ -36,6 +36,17 @@ export type Order = {
 };
 export type OrderItem = { id: string; order_id: string; product_id: string | null; product_name: string; unit_price: number; color: string; size: string; quantity: number; line_total: number };
 export type OrderStatusHistory = { id:string; order_id:string; status:OrderStatus; customer_note:string; created_at:string };
+export type DeliverySettings = {
+  id: "default";
+  base_fee: number;
+  free_shipping_threshold: number | null;
+  min_delivery_days: number;
+  max_delivery_days: number;
+  coverage_area: string;
+  customer_note: string;
+  updated_by: string | null;
+  updated_at: string;
+};
 export type CustomerOrderTracking = {
   id:string; order_number:number; status:OrderStatus; created_at:string; updated_at:string;
   history:Pick<OrderStatusHistory,"status"|"customer_note"|"created_at">[];
@@ -52,7 +63,7 @@ export const staffRoleDescriptions: Record<StaffRole, string> = {
   owner: "كل الصلاحيات، بما فيها إدارة المستخدمين.",
   manager: "إدارة المنتجات والطلبات، من غير إدارة المستخدمين.",
   products: "إضافة المنتجات وحذفها ورفع صورها فقط.",
-  orders: "عرض الطلبات وتحديث حالتها فقط.",
+  orders: "إدارة الطلبات وإعدادات التوصيل.",
 };
 
 export type Database = {
@@ -63,6 +74,7 @@ export type Database = {
       orders: { Row: Order; Insert: Omit<Order, "id" | "order_number" | "created_at" | "updated_at">; Update: Partial<Pick<Order, "status" | "updated_at">>; Relationships: [] };
       order_items: { Row: OrderItem; Insert: Omit<OrderItem, "id">; Update: Partial<Pick<OrderItem, "color" | "size" | "quantity">>; Relationships: [] };
       order_status_history: { Row: OrderStatusHistory; Insert: Omit<OrderStatusHistory, "id" | "created_at"> & { id?:string; created_at?:string }; Update: never; Relationships: [] };
+      delivery_settings: { Row: DeliverySettings; Insert: Omit<DeliverySettings, "updated_at"> & { updated_at?:string }; Update: Partial<Omit<DeliverySettings, "id">>; Relationships: [] };
       category_images: { Row: { slug:string; image_url:string; updated_by:string|null; updated_at:string }; Insert: { slug:string; image_url:string; updated_by?:string|null; updated_at?:string }; Update: Partial<{ image_url:string; updated_by:string|null; updated_at:string }>; Relationships: [] };
       category_details: { Row: { slug:string; name:string; english:string; description:string; updated_by:string|null; updated_at:string }; Insert: { slug:string; name:string; english:string; description:string; updated_by?:string|null; updated_at?:string }; Update: Partial<{ name:string; english:string; description:string; updated_by:string|null; updated_at:string }>; Relationships: [] };
     };

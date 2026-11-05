@@ -138,6 +138,36 @@ export async function deleteProduct(id: string) {
   revalidatePath("/"); revalidatePath("/dashboard/products"); return { ok:true, warning };
 }
 
+const deliverySettingsSchema = z.object({
+  base_fee:z.coerce.number().finite().min(0).max(100000),
+  free_shipping_threshold:z.preprocess(value=>value===""||value===null||value===undefined?null:value,z.coerce.number().finite().positive().max(10000000).nullable()),
+  min_delivery_days:z.coerce.number().int().min(1).max(90),
+  max_delivery_days:z.coerce.number().int().min(1).max(90),
+  coverage_area:z.string().trim().min(2).max(500),
+  customer_note:z.string().trim().max(1000).default(""),
+});
+
+export async function saveDeliverySettings(formData:FormData):Promise<{ok:boolean;error?:string}> {
+  const {supabase,user}=await requireAdmin(["owner","manager","orders"]);
+  const parsed=deliverySettingsSchema.safeParse(Object.fromEntries(formData));
+  if(!parsed.success)return {ok:false,error:"راجعي بيانات التوصيل؛ فيه قيمة ناقصة أو غير صحيحة."};
+  const data=parsed.data;
+  if(data.min_delivery_days>data.max_delivery_days)return {ok:false,error:"أقصى مدة للتوصيل لازم تكون مساوية أو أكبر من أقل مدة."};
+  const {error}=await supabase.from("delivery_settings").upsert({
+    id:"default",...data,updated_by:user.id,updated_at:new Date().toISOString(),
+  },{onConflict:"id"});
+  if(error){
+    if(error.code==="42P01"||error.code==="PGRST205")return {ok:false,error:"شغّلي ترحيل إعدادات التوصيل في Supabase أولاً."};
+    return {ok:false,error:"تعذر حفظ إعدادات التوصيل. راجعي صلاحيات Supabase."};
+  }
+  revalidatePath("/dashboard/delivery");
+  revalidatePath("/");
+  revalidatePath("/categories");
+  revalidatePath("/category/[slug]","page");
+  revalidatePath("/product/[slug]","page");
+  return {ok:true};
+}
+
 export async function setOrderStatus(id: string, status: OrderStatus) {
   const { supabase } = await requireAdmin(["owner", "manager", "orders"]);
   const allowed: OrderStatus[] = ["new","confirmed","in_progress","shipped","completed","cancelled"];

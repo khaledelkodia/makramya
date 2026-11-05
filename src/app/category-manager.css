@@ -32,3 +32,19 @@
 .product-edit-actions{display:flex;justify-content:flex-start;gap:8px;margin-top:16px}
 .product-edit-actions .button{min-height:38px}
 @media(max-width:640px){.product-edit-modal{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);padding:22px 17px}.product-edit-actions{position:sticky;bottom:-1px;padding:10px 0 2px;background:#fffdf9}}
+.delivery-page-icon{width:42px;height:42px;display:grid;place-items:center;border:1px solid var(--line);background:#fffdf9;color:#777860}
+.delivery-settings-page .notice-box,.delivery-settings-page .form-error,.delivery-settings-page .success-note{margin-bottom:13px}
+.delivery-settings-form label small{font-size:9px;line-height:1.65;color:#918b7f}
+.delivery-preview{display:flex;align-items:flex-start;gap:13px;margin-top:13px;padding:16px 18px}
+.delivery-preview-icon{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;background:#f0eee6;color:#73755e}
+.delivery-preview .eyebrow{font-size:9px}
+.delivery-preview p{margin:7px 0 0;font-size:10px;color:#777268;line-height:1.7}
+.delivery-preview p b{font-weight:500;color:#514d43}
+.delivery-cost-summary{display:grid;gap:7px;margin:12px 0;padding:12px 13px;background:#f8f6f0;border:1px solid #e9e4d9;font-size:10px}
+.delivery-cost-summary>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.delivery-cost-summary>div span,.delivery-cost-summary>small{color:#827d71}
+.delivery-cost-summary>div b{font-weight:500;color:#514d43}
+.delivery-cost-summary .delivery-total{padding-top:8px;border-top:1px solid #e5dfd2;font-size:11px}
+.delivery-cost-summary .delivery-total b{font-weight:600;color:#514d43}
+.checkout-delivery-summary{margin:10px 0 14px}
+.checkout-delivery-summary>small{font-size:9px;line-height:1.6;color:#827d71}
