@@ -7,6 +7,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { emptyCustomerProfile, profileFromMetadata, type CustomerProfile } from "@/lib/customer-profile";
 
 export function useCustomerSession() {
+  const [userId, setUserId] = useState("");
   const [email, setEmail] = useState("");
   const [signedIn, setSignedIn] = useState(false);
   const [profile, setProfile] = useState<CustomerProfile>(emptyCustomerProfile);
@@ -17,6 +18,7 @@ export function useCustomerSession() {
     let active = true;
     const syncSession = (session: Session | null) => {
       if (!active) return;
+      setUserId(session?.user.id || "");
       setEmail(session?.user.email || "");
       setSignedIn(Boolean(session?.user));
       setProfile(session?.user ? profileFromMetadata(session.user.user_metadata) : emptyCustomerProfile);
@@ -30,5 +32,5 @@ export function useCustomerSession() {
     };
   }, []);
 
-  return { email, signedIn, profile, setProfile };
+  return { userId, email, signedIn, profile, setProfile };
 }

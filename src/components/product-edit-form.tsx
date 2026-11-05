@@ -34,6 +34,7 @@ export function ProductEditForm({product,categories,onClose,onSaved,onError}:{pr
         <label>اسم المنتج<input name="name" defaultValue={product.name} minLength={2} maxLength={120} required/></label>
         <label>التصنيف<select name="category" defaultValue={product.category}>{!categories.some(category=>category.name===product.category)&&<option value={product.category}>{product.category}</option>}{categories.map(category=><option key={category.slug} value={category.name}>{category.name}</option>)}</select></label>
         <label>السعر بالجنيه<input name="price" type="number" min="1" step="1" defaultValue={product.price} required/></label>
+        <label>سعر العرض (اختياري)<input name="sale_price" type="number" min="1" step="1" defaultValue={product.sale_price||""} placeholder="اتركيه فاضي من غير عرض"/></label>
         <label>نوع الصورة الفنية<select name="style_key" defaultValue={product.style_key}><option value="wall">مكرمية حائط</option><option value="curtain">ستارة</option><option value="decor">ديكور منزلي</option></select></label>
         <label>الألوان (افصلي بينهم بفاصلة)<input name="colors" defaultValue={product.colors.map(color=>color.name).join(", ")} required/></label>
         <label>المقاسات المتاحة (افصلي بينهم بفاصلة)<input name="sizes" defaultValue={product.sizes.join(", ")} required/></label>

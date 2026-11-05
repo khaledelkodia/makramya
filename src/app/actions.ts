@@ -40,6 +40,7 @@ export async function logoutCustomer() {
 const productSchema = z.object({
   name: z.string().trim().min(2).max(120), category: z.string().trim().min(2).max(80),
   description: z.string().trim().max(2000).default(""), price: z.coerce.number().positive().max(10000000),
+  sale_price: z.preprocess(value => value === "" || value === null || value === undefined ? undefined : Number(value), z.number().positive().max(10000000).optional()),
   style_key: z.enum(["wall","curtain","decor"]), badge: z.string().trim().max(60).optional(),
   colors: z.string().min(1), sizes: z.string().min(1), inventory_count: z.coerce.number().int().min(0).max(100000),
   track_inventory: z.coerce.boolean().default(false),
@@ -50,6 +51,7 @@ export async function createProduct(formData: FormData): Promise<{ ok: boolean; 
   const parsed = productSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok:false, error:"راجعي البيانات، في خانة ناقصة أو غير صحيحة." };
   const data = parsed.data;
+  if (data.sale_price !== undefined && data.sale_price >= data.price) return { ok:false, error:"سعر العرض لازم يكون أقل من السعر الأصلي." };
   const colors = data.colors.split(",").map((item,index) => ({ name:item.trim(), hex:["#d4c3a4","#b69e7c","#73755c","#c2927f"][index%4] })).filter(item=>item.name);
   const sizes = data.sizes.split(",").map(item=>item.trim()).filter(Boolean);
   if (!colors.length || !sizes.length) return { ok:false, error:"أضيفي لون ومقاس واحد على الأقل." };
@@ -64,8 +66,8 @@ export async function createProduct(formData: FormData): Promise<{ ok: boolean; 
     imageUrl = supabase.storage.from("products").getPublicUrl(path).data.publicUrl;
   }
   const slug = `${data.name.normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48)||"product"}-${crypto.randomUUID().slice(0,8)}`;
-  const { error } = await supabase.from("products").insert({ slug, name:data.name, category:data.category, description:data.description, price:data.price, image_url:imageUrl, style_key:data.style_key, colors, sizes, inventory_count:data.inventory_count, track_inventory:data.track_inventory, badge:data.badge||null, status:"active", sort_order:0 });
-  if (error) return { ok:false, error:"تعذر حفظ المنتج في قاعدة البيانات." };
+  const { error } = await supabase.from("products").insert({ slug, name:data.name, category:data.category, description:data.description, price:data.price, sale_price:data.sale_price??null, image_url:imageUrl, style_key:data.style_key, colors, sizes, inventory_count:data.inventory_count, track_inventory:data.track_inventory, badge:data.badge||null, status:"active", sort_order:0 });
+  if (error) return { ok:false, error:error.code==="42703"?"شغّلي ترحيل العروض والكوبونات في Supabase أولاً.":"تعذر حفظ المنتج في قاعدة البيانات." };
   revalidatePath("/"); revalidatePath("/dashboard"); revalidatePath("/dashboard/products");
   return { ok:true };
 }
@@ -77,6 +79,7 @@ export async function updateProduct(formData:FormData):Promise<{ok:boolean;error
   const parsed=productSchema.safeParse(Object.fromEntries(formData));
   if(!parsed.success)return {ok:false,error:"راجعي البيانات؛ في خانة ناقصة أو غير صحيحة."};
   const data=parsed.data;
+  if(data.sale_price!==undefined&&data.sale_price>=data.price)return {ok:false,error:"سعر العرض لازم يكون أقل من السعر الأصلي."};
   const colors: {name:string;hex:string}[]=[];
   const sizes=data.sizes.split(",").map(item=>item.trim()).filter(Boolean);
   if(!data.colors.split(",").some(item=>item.trim())||!sizes.length)return {ok:false,error:"أضيفي لون ومقاس واحد على الأقل."};
@@ -102,7 +105,7 @@ export async function updateProduct(formData:FormData):Promise<{ok:boolean;error
   }
 
   const {error:updateError}=await supabase.from("products").update({
-    name:data.name,category:data.category,description:data.description,price:data.price,style_key:data.style_key,
+    name:data.name,category:data.category,description:data.description,price:data.price,sale_price:data.sale_price??null,style_key:data.style_key,
     badge:data.badge||null,colors,sizes,inventory_count:data.inventory_count,track_inventory:data.track_inventory,
     image_url:imageUrl,updated_at:new Date().toISOString(),
   }).eq("id",productId.data);
@@ -143,6 +146,56 @@ export async function deleteProduct(id: string) {
     if (imageError) warning = "اتحذف المنتج، لكن الصورة القديمة ما اتحذفتش من التخزين.";
   }
   revalidatePath("/"); revalidatePath("/dashboard/products"); return { ok:true, warning };
+}
+
+const couponSchema=z.object({
+  code:z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{3,32}$/),
+  discount_type:z.enum(["percent","fixed"]),
+  discount_value:z.coerce.number().positive().max(10000000),
+  max_discount:z.preprocess(value=>value===""||value===undefined?undefined:Number(value),z.number().positive().optional()),
+  minimum_subtotal:z.coerce.number().min(0).max(10000000),
+  usage_limit:z.preprocess(value=>value===""||value===undefined?undefined:Number(value),z.number().int().positive().max(1000000).optional()),
+  starts_at:z.string().optional(),ends_at:z.string().optional(),
+});
+
+function couponDate(value:string|undefined){if(!value)return null;const date=new Date(value);return Number.isNaN(date.getTime())?"invalid":date.toISOString();}
+
+export async function createCoupon(formData:FormData):Promise<{ok:boolean;error?:string}>{
+  const {supabase,user}=await requireAdmin(["owner","manager"]);
+  const parsed=couponSchema.safeParse(Object.fromEntries(formData));
+  if(!parsed.success)return {ok:false,error:"راجعي بيانات الكوبون؛ النسبة من 1 إلى 100 والحقول المطلوبة لازم تكون صحيحة."};
+  const data=parsed.data;
+  if(data.discount_type==="percent"&&data.discount_value>100)return {ok:false,error:"نسبة الخصم ما ينفعش تزيد عن 100٪."};
+  const startsAt=couponDate(data.starts_at),endsAt=couponDate(data.ends_at);
+  if(startsAt==="invalid"||endsAt==="invalid"||(startsAt&&endsAt&&new Date(endsAt)<=new Date(startsAt)))return {ok:false,error:"راجعي تاريخ بداية ونهاية الكوبون."};
+  const {error}=await supabase.from("store_coupons").insert({code:data.code,discount_type:data.discount_type,discount_value:data.discount_value,max_discount:data.max_discount??null,minimum_subtotal:data.minimum_subtotal,usage_limit:data.usage_limit??null,uses_count:0,starts_at:startsAt,ends_at:endsAt,is_active:true,created_by:user.id});
+  if(error)return {ok:false,error:error.code==="23505"?"الكود ده موجود بالفعل.":error.code==="42P01"?"شغّلي ترحيل العروض والكوبونات في Supabase أولاً.":"تعذر حفظ الكوبون."};
+  revalidatePath("/dashboard/promotions");return {ok:true};
+}
+
+export async function setCouponActive(id:string,isActive:boolean):Promise<{ok:boolean;error?:string}>{
+  const {supabase}=await requireAdmin(["owner","manager"]);
+  const couponId=z.string().uuid().safeParse(id);if(!couponId.success)return {ok:false,error:"الكوبون المحدد غير صحيح."};
+  const {error}=await supabase.from("store_coupons").update({is_active:isActive}).eq("id",couponId.data);
+  if(error)return {ok:false,error:"تعذر تحديث حالة الكوبون."};
+  revalidatePath("/dashboard/promotions");return {ok:true};
+}
+
+export async function deleteCoupon(id:string):Promise<{ok:boolean;error?:string}>{
+  const {supabase}=await requireAdmin(["owner","manager"]);
+  const couponId=z.string().uuid().safeParse(id);if(!couponId.success)return {ok:false,error:"الكوبون المحدد غير صحيح."};
+  const {error}=await supabase.from("store_coupons").delete().eq("id",couponId.data);
+  if(error)return {ok:false,error:"تعذر حذف الكوبون."};
+  revalidatePath("/dashboard/promotions");return {ok:true};
+}
+
+export async function closeCustomerCart(cartKey:string):Promise<{ok:boolean;error?:string}>{
+  const {supabase}=await requireAdmin(["owner","manager","orders"]);
+  const key=z.string().regex(/^(u:[0-9a-f-]{36}|g:[0-9a-f-]{36})$/i).safeParse(cartKey);
+  if(!key.success)return {ok:false,error:"السلة المحددة غير صحيحة."};
+  const {error}=await supabase.from("customer_carts").update({status:"closed"}).eq("cart_key",key.data).eq("status","active");
+  if(error)return {ok:false,error:"تعذر إغلاق السلة. تأكدي من تشغيل ترحيل السلات."};
+  revalidatePath("/dashboard/abandoned-carts");return {ok:true};
 }
 
 const deliveryZoneSchema=z.object({

@@ -6,6 +6,7 @@ export type Product = {
   category: string;
   description: string;
   price: number;
+  sale_price: number | null;
   image_url: string | null;
   style_key: "wall" | "curtain" | "decor";
   colors: ProductColor[];
@@ -32,6 +33,8 @@ export type Order = {
   notes: string;
   status: OrderStatus;
   subtotal: number;
+  discount_amount: number;
+  coupon_code: string | null;
   delivery_fee: number;
   total: number;
   created_at: string;
@@ -55,6 +58,39 @@ export type DeliveryZone = { governorates:string[]; fee:number };
 export type CustomerOrderTracking = {
   id:string; order_number:number; status:OrderStatus; created_at:string; updated_at:string;
   history:Pick<OrderStatusHistory,"status"|"customer_note"|"created_at">[];
+};
+
+export type StoreCoupon = {
+  id: string;
+  code: string;
+  discount_type: "percent" | "fixed";
+  discount_value: number;
+  max_discount: number | null;
+  minimum_subtotal: number;
+  usage_limit: number | null;
+  uses_count: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  is_active: boolean;
+  created_at: string;
+  created_by: string | null;
+};
+
+export type CustomerCart = {
+  cart_key: string;
+  customer_id: string | null;
+  customer_name: string;
+  customer_email: string;
+  phone: string;
+  address: string;
+  governorate: string;
+  contact_consent: boolean;
+  items: { product_id:string; product_name:string; image_url:string|null; color:string; size:string; quantity:number; unit_price:number; line_total:number }[];
+  subtotal: number;
+  status: "active" | "converted" | "closed";
+  order_id: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type StaffRole = "owner" | "manager" | "products" | "orders";
@@ -82,17 +118,23 @@ export type Database = {
       delivery_settings: { Row: DeliverySettings; Insert: Omit<DeliverySettings, "updated_at"> & { updated_at?:string }; Update: Partial<Omit<DeliverySettings, "id">>; Relationships: [] };
       category_images: { Row: { slug:string; image_url:string; updated_by:string|null; updated_at:string }; Insert: { slug:string; image_url:string; updated_by?:string|null; updated_at?:string }; Update: Partial<{ image_url:string; updated_by:string|null; updated_at:string }>; Relationships: [] };
       category_details: { Row: { slug:string; name:string; english:string; description:string; updated_by:string|null; updated_at:string }; Insert: { slug:string; name:string; english:string; description:string; updated_by?:string|null; updated_at?:string }; Update: Partial<{ name:string; english:string; description:string; updated_by:string|null; updated_at:string }>; Relationships: [] };
+      store_coupons: { Row: StoreCoupon; Insert: Omit<StoreCoupon,"id"|"created_at"> & {id?:string;created_at?:string}; Update: Partial<Pick<StoreCoupon,"is_active">>; Relationships: [] };
+      customer_carts: { Row: CustomerCart; Insert: never; Update: Partial<Pick<CustomerCart,"status">>; Relationships: [] };
     };
     Views: Record<string, never>;
     Functions: {
       place_order: { Args:
         | { p_customer_name: string; p_phone: string; p_address: string; p_governorate:string; p_customer_email:string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] }
+        | { p_customer_name:string; p_phone:string; p_address:string; p_governorate:string; p_customer_email:string; p_coupon_code:string; p_notes:string; p_items:{product_id:string;color:string;size:string;quantity:number}[] }
         | { p_customer_name: string; p_phone: string; p_address: string; p_governorate:string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] };
         Returns: string };
       track_order: { Args: { p_order_id:string }; Returns: CustomerOrderTracking | null };
       track_order_by_prefix: { Args: { p_order_id_prefix:string }; Returns: CustomerOrderTracking | null };
       claim_customer_orders: { Args: Record<string, never>; Returns: number };
       update_store_category: { Args: { p_slug:string; p_name:string; p_english:string; p_description:string }; Returns: boolean };
+      quote_coupon: { Args: { p_code:string; p_subtotal:number }; Returns: { valid:boolean; discount_amount:number; normalized_code:string; message:string }[] };
+      save_customer_cart: { Args: { p_cart_key:string; p_items:{product_id:string;color:string;size:string;quantity:number}[]; p_customer_name?:string; p_customer_email?:string; p_phone?:string; p_address?:string; p_governorate?:string; p_contact_consent?:boolean }; Returns: undefined };
+      revoke_customer_cart_contact: { Args:{p_cart_key:string}; Returns:undefined };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
