@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { categories } from "@/lib/categories";
+import { EGYPT_GOVERNORATES } from "@/lib/delivery";
 import type { OrderStatus, StaffRole } from "@/lib/types";
 
 export async function loginAdmin(formData: FormData) {
@@ -138,13 +139,22 @@ export async function deleteProduct(id: string) {
   revalidatePath("/"); revalidatePath("/dashboard/products"); return { ok:true, warning };
 }
 
+const deliveryZoneSchema=z.object({
+  governorates:z.array(z.enum(EGYPT_GOVERNORATES)).min(1),
+  fee:z.coerce.number().finite().int().min(0).max(100000),
+});
 const deliverySettingsSchema = z.object({
-  base_fee:z.coerce.number().finite().min(0).max(100000),
+  delivery_zones:z.preprocess(value=>{if(typeof value!=="string")return value;try{return JSON.parse(value)}catch{return null}},z.array(deliveryZoneSchema).min(1).max(EGYPT_GOVERNORATES.length)),
   free_shipping_threshold:z.preprocess(value=>value===""||value===null||value===undefined?null:value,z.coerce.number().finite().positive().max(10000000).nullable()),
   min_delivery_days:z.coerce.number().int().min(1).max(90),
   max_delivery_days:z.coerce.number().int().min(1).max(90),
-  coverage_area:z.string().trim().min(2).max(500),
   customer_note:z.string().trim().max(1000).default(""),
+}).superRefine((data,context)=>{
+  const assigned=new Set<string>();
+  data.delivery_zones.forEach((zone,index)=>zone.governorates.forEach(governorate=>{
+    if(assigned.has(governorate))context.addIssue({code:"custom",path:["delivery_zones",index,"governorates"],message:"المحافظة لازم تكون ضمن مجموعة واحدة فقط."});
+    assigned.add(governorate);
+  }));
 });
 
 export async function saveDeliverySettings(formData:FormData):Promise<{ok:boolean;error?:string}> {
@@ -154,7 +164,7 @@ export async function saveDeliverySettings(formData:FormData):Promise<{ok:boolea
   const data=parsed.data;
   if(data.min_delivery_days>data.max_delivery_days)return {ok:false,error:"أقصى مدة للتوصيل لازم تكون مساوية أو أكبر من أقل مدة."};
   const {error}=await supabase.from("delivery_settings").upsert({
-    id:"default",...data,updated_by:user.id,updated_at:new Date().toISOString(),
+    id:"default",base_fee:data.delivery_zones[0]?.fee??0,...data,coverage_area:data.delivery_zones.flatMap(zone=>zone.governorates).join("، "),updated_by:user.id,updated_at:new Date().toISOString(),
   },{onConflict:"id"});
   if(error){
     if(error.code==="42P01"||error.code==="PGRST205")return {ok:false,error:"شغّلي ترحيل إعدادات التوصيل في Supabase أولاً."};

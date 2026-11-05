@@ -25,6 +25,7 @@ export type Order = {
   order_number: number;
   customer_name: string;
   phone: string;
+  governorate: string;
   address: string;
   notes: string;
   status: OrderStatus;
@@ -39,6 +40,7 @@ export type OrderStatusHistory = { id:string; order_id:string; status:OrderStatu
 export type DeliverySettings = {
   id: "default";
   base_fee: number;
+  delivery_zones: DeliveryZone[];
   free_shipping_threshold: number | null;
   min_delivery_days: number;
   max_delivery_days: number;
@@ -47,6 +49,7 @@ export type DeliverySettings = {
   updated_by: string | null;
   updated_at: string;
 };
+export type DeliveryZone = { governorates:string[]; fee:number };
 export type CustomerOrderTracking = {
   id:string; order_number:number; status:OrderStatus; created_at:string; updated_at:string;
   history:Pick<OrderStatusHistory,"status"|"customer_note"|"created_at">[];
@@ -80,7 +83,7 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
-      place_order: { Args: { p_customer_name: string; p_phone: string; p_address: string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] }; Returns: string };
+      place_order: { Args: { p_customer_name: string; p_phone: string; p_address: string; p_governorate:string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] }; Returns: string };
       track_order: { Args: { p_order_id:string }; Returns: CustomerOrderTracking | null };
       update_store_category: { Args: { p_slug:string; p_name:string; p_english:string; p_description:string }; Returns: boolean };
     };
