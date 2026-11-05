@@ -1,3 +1,23 @@
+@media (min-width: 641px) {
+  .hero-copy {
+    top: 46%;
+    max-width: 560px;
+  }
+
+  .hero h1 {
+    font-size: clamp(48px, 5.2vw, 76px);
+    line-height: 1.1;
+  }
+
+  .hero-copy p {
+    margin: 17px 0 22px;
+  }
+
+  .hero-note {
+    bottom: 12px;
+  }
+}
+
 @media (max-width: 640px) {
   .hero {
     height: min(690px, max(600px, calc(100svh - 96px)));
