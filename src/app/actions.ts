@@ -31,6 +31,12 @@ export async function logoutAdmin() {
   redirect("/login");
 }
 
+export async function logoutCustomer() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/account/login");
+}
+
 const productSchema = z.object({
   name: z.string().trim().min(2).max(120), category: z.string().trim().min(2).max(80),
   description: z.string().trim().max(2000).default(""), price: z.coerce.number().positive().max(10000000),

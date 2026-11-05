@@ -1,0 +1,5 @@
+.checkout-email-note{display:block;color:#898378;font-size:9px;line-height:1.7;margin:-5px 0 4px}
+.customer-order-address{font-size:9px;color:#817b71;line-height:1.7;padding:10px 0 0}
+.customer-account-pending{max-width:390px;margin:18px auto 0;padding:11px;background:#f3f0e9;color:#777268;font-size:10px;line-height:1.8;text-align:center}
+.track-header-links{display:flex;align-items:center;gap:18px}
+@media(max-width:620px){.track-header-links{gap:10px}.track-header-links .track-back{font-size:8px}}

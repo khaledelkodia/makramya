@@ -24,6 +24,8 @@ export type Order = {
   id: string;
   order_number: number;
   customer_name: string;
+  customer_email: string;
+  customer_id: string | null;
   phone: string;
   governorate: string;
   address: string;
@@ -83,9 +85,13 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
-      place_order: { Args: { p_customer_name: string; p_phone: string; p_address: string; p_governorate:string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] }; Returns: string };
+      place_order: { Args:
+        | { p_customer_name: string; p_phone: string; p_address: string; p_governorate:string; p_customer_email:string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] }
+        | { p_customer_name: string; p_phone: string; p_address: string; p_governorate:string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] };
+        Returns: string };
       track_order: { Args: { p_order_id:string }; Returns: CustomerOrderTracking | null };
       track_order_by_prefix: { Args: { p_order_id_prefix:string }; Returns: CustomerOrderTracking | null };
+      claim_customer_orders: { Args: Record<string, never>; Returns: number };
       update_store_category: { Args: { p_slug:string; p_name:string; p_english:string; p_description:string }; Returns: boolean };
     };
     Enums: Record<string, never>;
