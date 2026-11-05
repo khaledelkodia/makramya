@@ -89,7 +89,7 @@ export async function deleteProduct(id: string) {
 
 export async function setOrderStatus(id: string, status: OrderStatus) {
   const { supabase } = await requireAdmin(["owner", "manager", "orders"]);
-  const allowed: OrderStatus[] = ["new","confirmed","in_progress","shipped","completed"];
+  const allowed: OrderStatus[] = ["new","confirmed","in_progress","shipped","completed","cancelled"];
   if (!allowed.includes(status)) return { ok:false, error:"حالة الطلب غير صحيحة." };
   const { error } = await supabase.from("orders").update({ status, updated_at:new Date().toISOString() }).eq("id",id);
   if (error) return { ok:false, error:"تعذر تحديث الطلب." };

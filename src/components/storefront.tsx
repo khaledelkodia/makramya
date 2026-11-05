@@ -18,7 +18,7 @@ export function Storefront({ products, initialCategory, categoryDescription, cat
   const category = initialCategory || "الكل";
   const [search, setSearch] = useState(""), [cart, setCart] = useState<CartItem[]>([]);
   const [active, setActive] = useState<Product | null>(null), [colorIndex, setColorIndex] = useState(0), [size, setSize] = useState(""), [quantity, setQuantity] = useState(1);
-  const [cartOpen, setCartOpen] = useState(false), [checkoutOpen, setCheckoutOpen] = useState(false), [toast, setToast] = useState(""), [busy, setBusy] = useState(false), [menuOpen, setMenuOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false), [checkoutOpen, setCheckoutOpen] = useState(false), [toast, setToast] = useState(""), [busy, setBusy] = useState(false), [menuOpen, setMenuOpen] = useState(false), [trackingOrderId,setTrackingOrderId]=useState<string|null>(null);
   const visible = useMemo(() => products.filter(p => (category === "الكل" || p.category === category) && `${p.name} ${p.category}`.includes(search.trim())), [products, category, search]);
   const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   function notify(message: string) { setToast(message); window.setTimeout(() => setToast(""), 2700); }
@@ -37,9 +37,10 @@ export function Storefront({ products, initialCategory, categoryDescription, cat
     const payload = cart.map(item => ({ product_id:item.product.id, color:item.color.name, size:item.size, quantity:item.quantity }));
     try {
       const supabase = createClient();
-      const { error } = await supabase.rpc("place_order", { p_customer_name:String(form.get("customer")), p_phone:String(form.get("phone")), p_address:String(form.get("address")), p_notes:String(form.get("notes") || ""), p_items:payload });
+      const { data:orderId, error } = await supabase.rpc("place_order", { p_customer_name:String(form.get("customer")), p_phone:String(form.get("phone")), p_address:String(form.get("address")), p_notes:String(form.get("notes") || ""), p_items:payload });
       if (error) throw error;
-      setCart([]); setCheckoutOpen(false); setCartOpen(false); notify("طلبك وصل، هنكلمك قريب لتأكيد التفاصيل");
+      if(!orderId)throw new Error("order id missing");
+      setCart([]); setCheckoutOpen(false); setCartOpen(false); setTrackingOrderId(orderId); notify("طلبك وصل، هنكلمك قريب لتأكيد التفاصيل");
     } catch (error) { notify(error instanceof Error ? "حصلت مشكلة في الطلب. جرّبي تاني أو كلمينا." : "تعذر إرسال الطلب"); console.error(error); }
     finally { setBusy(false); }
   }
@@ -67,6 +68,7 @@ export function Storefront({ products, initialCategory, categoryDescription, cat
       {cartOpen&&<div className="drawer-content cart-drawer"><span className="eyebrow">اختياراتك الحلوة</span><h2>سلة التسوق</h2>{cart.length? <><div className="cart-lines">{cart.map((item,index)=><div className="admin-card cart-line" key={`${item.product.id}-${index}`}><div><b>{item.product.name}</b><p>{item.color.name} · {item.size} · {item.quantity} قطعة</p></div><strong>{egp(item.product.price*item.quantity)}</strong><button className="remove-item" onClick={()=>setCart(cart.filter((_,i)=>i!==index))} aria-label="حذف"><X size={15}/></button></div>)}</div><div className="quantity-row"><b>الإجمالي المبدئي</b><b>{egp(total)}</b></div><small className="shipping-note">الشحن يتحدد حسب المحافظة وهنأكد معاكي قبل تجهيز الطلب.</small><button className="add-cart" onClick={()=>{setCartOpen(false);setCheckoutOpen(true)}}>كمّلي الطلب <ArrowLeft size={16}/></button></>:<div className="empty-state"><span>♧</span>السلة لسه فاضية.<br/>كل بيت بيستاهل قطعة معمولة بحب.</div>}</div>}
     </aside>
     {checkoutOpen&&<div className="modal-wrap open" onClick={e=>{if(e.target===e.currentTarget)setCheckoutOpen(false)}}><div className="modal"><button className="close-button" onClick={()=>setCheckoutOpen(false)} aria-label="إغلاق"><X/></button><span className="eyebrow">خطوة واحدة وتبقى ليكي</span><h2>بيانات الطلب</h2><p>هنكلمك نأكد كل التفاصيل قبل ما نبدأ الشغل.</p><div className="admin-card summary-card">{cart.map((item,index)=><div key={index}>{item.product.name} · {item.color.name} · {item.size} × {item.quantity}</div>)}<hr/><b>الإجمالي المبدئي: {egp(total)}</b></div><form className="order-form" onSubmit={submitOrder}><input name="customer" required minLength={2} maxLength={120} placeholder="اسمك بالكامل"/><input name="phone" type="tel" required minLength={7} maxLength={30} placeholder="رقم الموبايل"/><input name="address" required minLength={5} maxLength={500} placeholder="عنوان التوصيل بالتفصيل"/><textarea name="notes" maxLength={1000} placeholder="ملاحظات إضافية (اختياري)"/><button className="button button-dark" disabled={busy}>{busy?"جاري إرسال الطلب...":"أكدي الطلب"} <ArrowLeft size={15}/></button></form></div></div>}
+    {trackingOrderId&&<div className="modal-wrap open" onClick={event=>{if(event.target===event.currentTarget)setTrackingOrderId(null)}}><section className="modal order-success-modal"><button className="close-button" onClick={()=>setTrackingOrderId(null)} aria-label="إغلاق"><X/></button><span className="eyebrow">اتسجل بنجاح</span><h2>طلبك <em>وصلنا.</em></h2><p>هنكلمك قريب لتأكيد التفاصيل. احتفظي برابط المتابعة عشان تعرفي كل تحديث على طلبك.</p><Link className="button button-dark" href={`/track/${trackingOrderId}`}>تابعي حالة الطلب <ArrowLeft size={15}/></Link><button className="track-copy-button" onClick={async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/track/${trackingOrderId}`);notify("اتنسخ رابط المتابعة")}catch{notify("افتحي رابط المتابعة واحفظيه")}}}>انسخي رابط المتابعة</button></section></div>}
     <div className={`toast ${toast?"show":""}`} role="status">{toast}</div>
   </>;
 }

@@ -41,6 +41,8 @@ npx supabase db push
 
 بما إن قاعدة البيانات الأولية مطبّقة بالفعل، شغّلي أيضاً `supabase/migrations/202611040002_staff_roles.sql` مرة واحدة في **SQL Editor**. يضيف أدوار `owner` و`manager` و`products` و`orders` وسياسات RLS التي تقصر كل صلاحية على مهامها. الحساب الموجود يتحول تلقائياً إلى `owner`.
 
+بعدها شغّلي `supabase/migrations/202611050001_order_tracking.sql` مرة واحدة. يسجل كل تحديث لحالة الطلب ويضيف RPC آمنة لصفحة `/track/[id]`؛ رابط العميل يعرض رقم الطلب والحالة وسجل تحديثاتها فقط.
+
 ## 3. إنشاء حساب صاحبة المتجر
 
 من Supabase **Authentication → Users → Add user**، أنشئي مستخدماً بالبريد وكلمة مرور تختاريهما. بعدها شغّلي هذا الاستعلام من **SQL Editor** بعد استبدال البريد:
@@ -51,7 +53,7 @@ select id from auth.users where email = 'owner@example.com'
 on conflict (user_id) do nothing;
 ```
 
-تسجيل الدخول متاح في `/login`، والداشبورد في `/dashboard`. صاحبة الحساب `owner` تقدر تضيف مستخدمين وتغيّر أدوارهم أو تحذفهم من `/dashboard/users`. إدارة المنتجات وإضافة الصور متاحة لأدوار `owner` و`manager` و`products`؛ الطلبات متاحة لأدوار `owner` و`manager` و`orders`. لا يوجد تسجيل عام للعملاء.
+تسجيل الدخول متاح في `/login`، والداشبورد في `/dashboard`. صاحبة الحساب `owner` تقدر تضيف مستخدمين وتغيّر أدوارهم أو تحذفهم من `/dashboard/users`. إدارة المنتجات وإضافة الصور متاحة لأدوار `owner` و`manager` و`products`؛ الطلبات متاحة لأدوار `owner` و`manager` و`orders`. بعد إرسال الطلب يظهر للعميلة رابط خاص لمتابعة الحالة وسجل تحديثاتها. لا يوجد تسجيل عام للعملاء.
 
 ## 4. تشغيل المشروع
 
