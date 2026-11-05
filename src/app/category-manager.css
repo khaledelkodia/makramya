@@ -6,6 +6,7 @@
 .category-edit-form .button{justify-self:start;padding:9px 11px;font-size:9px;gap:7px}
 .row-actions .product-delete-action{display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-color:#eadbd6;background:#fff9f7;color:#955d4e;white-space:nowrap}
 .row-actions .product-delete-action:hover{background:#f7efec}
+.story-art-image{object-fit:cover}
 .dashboard-toast{position:fixed;z-index:120;bottom:24px;left:50%;display:flex;align-items:center;gap:12px;width:min(430px,calc(100vw - 32px));padding:13px 14px;background:#fffdf9;border:1px solid #e7e2d8;box-shadow:0 14px 40px rgba(36,34,31,.18);color:#3f3c36;transform:translateX(-50%);animation:dashboard-toast-in .22s ease-out}
 .dashboard-toast-icon{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border-radius:50%;background:#e8eee5;color:#607254}
 .dashboard-toast-copy{display:grid;gap:3px;min-width:0;flex:1}

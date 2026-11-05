@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { Check, ImagePlus, LoaderCircle, Trash2 } from "lucide-react";
 import { removeCategoryImage, saveCategoryDetails, saveCategoryImage } from "@/app/actions";
 import type { StoreCategory } from "@/lib/categories";
+import { categoryFallbackImages } from "@/lib/store-images";
 
 type Message={text:string;error:boolean};
 
@@ -49,9 +50,7 @@ export function CategoryManager({categories,setupMessage}:{categories:StoreCateg
     {setupMessage&&<div className="notice-box">{setupMessage}</div>}
     <div className="category-admin-grid">
       {categories.map(category=><article className="admin-card category-admin-card" key={category.slug}>
-        <div className="category-admin-cover">
-          {category.image_url?<Image src={category.image_url} alt={category.name} fill sizes="(max-width: 640px) 100vw, 33vw"/>:<div className={`category-visual ${category.style}`}><span>{category.number}</span><i>✳</i></div>}
-        </div>
+        <div className="category-admin-cover"><Image src={category.image_url||categoryFallbackImages[category.slug]} alt={category.name} fill sizes="(max-width: 640px) 100vw, 33vw"/></div>
         <div className="category-admin-info"><span className="eyebrow">{category.english}</span><h3>{category.name}</h3></div>
         <form key={`${category.slug}-${category.name}-${category.english}-${category.description}`} className="category-edit-form" onSubmit={event=>saveDetails(category.slug,event)}>
           <input type="hidden" name="slug" value={category.slug}/>

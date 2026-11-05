@@ -1,6 +1,7 @@
 import type { Product } from "@/lib/types";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
+import { withProductPhoto } from "@/lib/store-images";
 
 export const demoProducts: Product[] = [
   { id:"demo-1", slug:"sakina", name:"مكرمية حائط «سَكينة»", category:"مكرميات حائط", description:"قطعة متنفّذة يدوياً من خيوط القطن الطبيعي، بعقد دقيقة وخطوط هادية تدي حيطتك روحها.", price:1850, image_url:null, style_key:"wall", colors:[{name:"طبيعي",hex:"#d4c3a4"},{name:"رملي",hex:"#b69e7c"},{name:"زيتي",hex:"#73755c"}], sizes:["40 × 60 سم","60 × 90 سم","مقاس مخصوص"], inventory_count:0, track_inventory:false, badge:"الأكثر طلباً", status:"active", sort_order:1, created_at:"", updated_at:"" },
@@ -12,11 +13,11 @@ export const demoProducts: Product[] = [
 ];
 
 export async function getProducts(): Promise<Product[]> {
-  if (!isSupabaseConfigured) return demoProducts;
+  if (!isSupabaseConfigured) return demoProducts.map(withProductPhoto);
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.from("products").select("*").eq("status", "active").or("track_inventory.eq.false,inventory_count.gt.0").order("sort_order");
-    if (!error && data) return data;
+    if (!error && data) return data.map(withProductPhoto);
   } catch { /* The storefront can still show the sample collection before Supabase is configured. */ }
-  return demoProducts;
+  return demoProducts.map(withProductPhoto);
 }
