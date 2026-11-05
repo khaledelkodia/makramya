@@ -63,6 +63,7 @@ export type Database = {
       orders: { Row: Order; Insert: Omit<Order, "id" | "order_number" | "created_at" | "updated_at">; Update: Partial<Pick<Order, "status" | "updated_at">>; Relationships: [] };
       order_items: { Row: OrderItem; Insert: Omit<OrderItem, "id">; Update: Partial<Pick<OrderItem, "color" | "size" | "quantity">>; Relationships: [] };
       order_status_history: { Row: OrderStatusHistory; Insert: Omit<OrderStatusHistory, "id" | "created_at"> & { id?:string; created_at?:string }; Update: never; Relationships: [] };
+      category_images: { Row: { slug:string; image_url:string; updated_by:string|null; updated_at:string }; Insert: { slug:string; image_url:string; updated_by?:string|null; updated_at?:string }; Update: Partial<{ image_url:string; updated_by:string|null; updated_at:string }>; Relationships: [] };
     };
     Views: Record<string, never>;
     Functions: {

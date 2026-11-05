@@ -1,0 +1,15 @@
+"use client";
+
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { Check, ImagePlus, LoaderCircle, Trash2 } from "lucide-react";
+import { removeCategoryImage, saveCategoryImage } from "@/app/actions";
+import type { StoreCategory } from "@/lib/categories";
+
+export function CategoryImageManager({categories,setupMessage}:{categories:StoreCategory[];setupMessage?:string}){
+  const router=useRouter();const [busy,startTransition]=useTransition();const [messages,setMessages]=useState<Record<string,{text:string;error:boolean}>>({});
+  function upload(slug:string,event:React.FormEvent<HTMLFormElement>){event.preventDefault();const formData=new FormData(event.currentTarget);startTransition(async()=>{const result=await saveCategoryImage(formData);setMessages(current=>({...current,[slug]:{text:result.ok?(result.warning||"اتحفظت صورة الصنف."):result.error||"تعذر حفظ الصورة.",error:!result.ok}}));if(result.ok)router.refresh();});}
+  function remove(category:StoreCategory){if(!window.confirm(`تحبي تشيلي صورة «${category.name}»؟`))return;startTransition(async()=>{const result=await removeCategoryImage(category.slug);setMessages(current=>({...current,[category.slug]:{text:result.ok?(result.warning||"اتشالت صورة الصنف."):result.error||"تعذر حذف الصورة.",error:!result.ok}}));if(result.ok)router.refresh();});}
+  return <><div className="products-toolbar"><div><h2>صور الأصناف</h2><p>ارفعي صورة لكل صنف عشان تظهر في بطاقته وصفحته.</p></div></div>{setupMessage&&<div className="notice-box">{setupMessage}</div>}<div className="category-admin-grid">{categories.map(category=><article className="admin-card category-admin-card" key={category.slug}><div className="category-admin-cover">{category.image_url?<Image src={category.image_url} alt={category.name} fill sizes="(max-width: 640px) 100vw, 33vw"/>:<div className={`category-visual ${category.style}`}><span>{category.number}</span><i>✳</i></div>}</div><div className="category-admin-info"><span className="eyebrow">{category.english}</span><h3>{category.name}</h3></div><form className="category-admin-actions" onSubmit={event=>upload(category.slug,event)}><input type="hidden" name="slug" value={category.slug}/><label className="upload-field"><ImagePlus size={17}/><span>{category.image_url?"اختاري صورة بديلة":"اختاري صورة"}</span><input type="file" name="image" accept="image/jpeg,image/png,image/webp" required/></label><div className="category-image-actions"><button className="button button-dark" disabled={busy}>{busy?<LoaderCircle className="spin" size={14}/>:<Check size={14}/>}حفظ الصورة</button>{category.image_url&&<button type="button" className="category-image-remove" disabled={busy} onClick={()=>remove(category)} aria-label={`إزالة صورة ${category.name}`}><Trash2 size={14}/></button>}</div></form>{messages[category.slug]&&<div className={`category-admin-message ${messages[category.slug].error?"error":"success"}`} role="status">{messages[category.slug].text}</div>}</article>)}</div></>;
+}

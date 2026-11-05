@@ -5,3 +5,4 @@ export const categories = [
 ] as const;
 
 export function getCategory(slug:string) { return categories.find(category=>category.slug===slug); }
+export type StoreCategory = (typeof categories)[number] & { image_url:string|null };

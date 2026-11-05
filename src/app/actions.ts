@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { categories } from "@/lib/categories";
 import type { OrderStatus, StaffRole } from "@/lib/types";
 
 export async function loginAdmin(formData: FormData) {
@@ -175,4 +176,56 @@ export async function deleteStaffUser(id: string): Promise<{ ok:boolean; error?:
   if (error) return { ok:false, error:"تعذر حذف حساب المستخدم من Supabase Auth." };
   revalidatePath("/dashboard"); revalidatePath("/dashboard/users");
   return { ok:true };
+}
+
+const categorySlugSchema=z.enum(["macrame","curtains","home-decor"]);
+const categoryImageMarker="/storage/v1/object/public/products/";
+function getStoredCategoryImagePath(imageUrl:string|null|undefined){
+  if(!imageUrl?.includes(categoryImageMarker))return null;
+  try{return decodeURIComponent(imageUrl.split(categoryImageMarker)[1].split("?")[0]);}catch{return null;}
+}
+function refreshCategoryPages(){
+  revalidatePath("/");revalidatePath("/categories");revalidatePath("/dashboard/categories");
+  for(const category of categories)revalidatePath(`/category/${category.slug}`);
+}
+
+export async function saveCategoryImage(formData:FormData):Promise<{ok:boolean;error?:string;warning?:string}> {
+  const {supabase,user}=await requireAdmin(["owner","manager","products"]);
+  const parsedSlug=categorySlugSchema.safeParse(formData.get("slug"));
+  const image=formData.get("image");
+  if(!parsedSlug.success)return {ok:false,error:"الصنف المحدد غير صحيح."};
+  if(!(image instanceof File)||!image.size)return {ok:false,error:"اختاري صورة للصنف أولاً."};
+  if(!["image/jpeg","image/png","image/webp"].includes(image.type)||image.size>5*1024*1024)return {ok:false,error:"الصورة لازم تكون JPG أو PNG أو WebP وأقل من 5 ميجابايت."};
+
+  const slug=parsedSlug.data;
+  const {data:existing,error:readError}=await supabase.from("category_images").select("image_url").eq("slug",slug).maybeSingle();
+  if(readError)return {ok:false,error:"شغّلي ترحيل صور الأصناف في Supabase أولاً."};
+  const extension=image.type==="image/png"?"png":image.type==="image/webp"?"webp":"jpg";
+  const path=`categories/${slug}/${crypto.randomUUID()}.${extension}`;
+  const {error:uploadError}=await supabase.storage.from("products").upload(path,new Uint8Array(await image.arrayBuffer()),{contentType:image.type,upsert:false});
+  if(uploadError)return {ok:false,error:"تعذر رفع الصورة. تأكدي من صلاحيات التخزين وحجم الملف."};
+  const imageUrl=supabase.storage.from("products").getPublicUrl(path).data.publicUrl;
+  const {error:saveError}=await supabase.from("category_images").upsert({slug,image_url:imageUrl,updated_by:user.id,updated_at:new Date().toISOString()},{onConflict:"slug"});
+  if(saveError){await supabase.storage.from("products").remove([path]);return {ok:false,error:"تعذر حفظ الصورة للصنف."};}
+
+  let warning:string|undefined;
+  const oldPath=getStoredCategoryImagePath(existing?.image_url);
+  if(oldPath&&oldPath!==path){const {error}=await supabase.storage.from("products").remove([oldPath]);if(error)warning="اتحدّثت صورة الصنف، لكن النسخة القديمة ما اتحذفتش من التخزين.";}
+  refreshCategoryPages();
+  return {ok:true,warning};
+}
+
+export async function removeCategoryImage(slug:string):Promise<{ok:boolean;error?:string;warning?:string}> {
+  const {supabase}=await requireAdmin(["owner","manager","products"]);
+  const parsedSlug=categorySlugSchema.safeParse(slug);
+  if(!parsedSlug.success)return {ok:false,error:"الصنف المحدد غير صحيح."};
+  const {data:existing,error:readError}=await supabase.from("category_images").select("image_url").eq("slug",parsedSlug.data).maybeSingle();
+  if(readError)return {ok:false,error:"تعذر قراءة صورة الصنف."};
+  const {error:deleteError}=await supabase.from("category_images").delete().eq("slug",parsedSlug.data);
+  if(deleteError)return {ok:false,error:"تعذر إزالة صورة الصنف."};
+  const path=getStoredCategoryImagePath(existing?.image_url);
+  let warning:string|undefined;
+  if(path){const {error}=await supabase.storage.from("products").remove([path]);if(error)warning="اتشالت الصورة من الصنف، لكن الملف فضل في التخزين.";}
+  refreshCategoryPages();
+  return {ok:true,warning};
 }
