@@ -5,4 +5,13 @@ export const categories = [
 ] as const;
 
 export function getCategory(slug:string) { return categories.find(category=>category.slug===slug); }
-export type StoreCategory = (typeof categories)[number] & { image_url:string|null };
+export type CategorySlug = (typeof categories)[number]["slug"];
+export type StoreCategory = {
+  slug: CategorySlug;
+  name: string;
+  english: string;
+  description: string;
+  number: string;
+  style: (typeof categories)[number]["style"];
+  image_url: string | null;
+};

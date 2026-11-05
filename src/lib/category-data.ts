@@ -8,9 +8,15 @@ export async function getCategories():Promise<StoreCategory[]> {
   if(!isSupabaseConfigured)return fallback;
   try{
     const supabase=await createClient();
-    const {data,error}=await supabase.from("category_images").select("slug,image_url");
-    if(error||!data)return fallback;
-    const images=new Map(data.map(row=>[row.slug,row.image_url]));
-    return fallback.map(category=>({...category,image_url:images.get(category.slug)||null}));
+    const [{data:images},{data:details}]=await Promise.all([
+      supabase.from("category_images").select("slug,image_url"),
+      supabase.from("category_details").select("slug,name,english,description"),
+    ]);
+    const imageBySlug=new Map((images||[]).map(row=>[row.slug,row.image_url]));
+    const detailsBySlug=new Map((details||[]).map(row=>[row.slug,row]));
+    return fallback.map(category=>{
+      const detail=detailsBySlug.get(category.slug);
+      return {...category,...(detail?{name:detail.name,english:detail.english,description:detail.description}:{}),image_url:imageBySlug.get(category.slug)||null};
+    });
   }catch{return fallback;}
 }

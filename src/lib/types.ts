@@ -64,11 +64,13 @@ export type Database = {
       order_items: { Row: OrderItem; Insert: Omit<OrderItem, "id">; Update: Partial<Pick<OrderItem, "color" | "size" | "quantity">>; Relationships: [] };
       order_status_history: { Row: OrderStatusHistory; Insert: Omit<OrderStatusHistory, "id" | "created_at"> & { id?:string; created_at?:string }; Update: never; Relationships: [] };
       category_images: { Row: { slug:string; image_url:string; updated_by:string|null; updated_at:string }; Insert: { slug:string; image_url:string; updated_by?:string|null; updated_at?:string }; Update: Partial<{ image_url:string; updated_by:string|null; updated_at:string }>; Relationships: [] };
+      category_details: { Row: { slug:string; name:string; english:string; description:string; updated_by:string|null; updated_at:string }; Insert: { slug:string; name:string; english:string; description:string; updated_by?:string|null; updated_at?:string }; Update: Partial<{ name:string; english:string; description:string; updated_by:string|null; updated_at:string }>; Relationships: [] };
     };
     Views: Record<string, never>;
     Functions: {
       place_order: { Args: { p_customer_name: string; p_phone: string; p_address: string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] }; Returns: string };
       track_order: { Args: { p_order_id:string }; Returns: CustomerOrderTracking | null };
+      update_store_category: { Args: { p_slug:string; p_name:string; p_english:string; p_description:string }; Returns: boolean };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

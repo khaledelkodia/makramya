@@ -3,6 +3,7 @@ import "./globals.css";
 import "./overrides.css";
 import "./hero-mobile.css";
 import "./dashboard.css";
+import "./category-manager.css";
 
 export const metadata: Metadata = {
   title: { default: "مكرمية | حرفة يدوية بلمسة من البيت", template: "%s | مكرمية" },

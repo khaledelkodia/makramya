@@ -179,14 +179,40 @@ export async function deleteStaffUser(id: string): Promise<{ ok:boolean; error?:
 }
 
 const categorySlugSchema=z.enum(["macrame","curtains","home-decor"]);
+const categoryDetailsSchema=z.object({
+  slug:categorySlugSchema,
+  name:z.string().trim().min(2).max(80),
+  english:z.string().trim().min(2).max(60),
+  description:z.string().trim().min(5).max(300),
+});
 const categoryImageMarker="/storage/v1/object/public/products/";
 function getStoredCategoryImagePath(imageUrl:string|null|undefined){
   if(!imageUrl?.includes(categoryImageMarker))return null;
   try{return decodeURIComponent(imageUrl.split(categoryImageMarker)[1].split("?")[0]);}catch{return null;}
 }
 function refreshCategoryPages(){
-  revalidatePath("/");revalidatePath("/categories");revalidatePath("/dashboard/categories");
+  revalidatePath("/");revalidatePath("/categories");revalidatePath("/dashboard/categories");revalidatePath("/dashboard/products");revalidatePath("/product/[slug]","page");
   for(const category of categories)revalidatePath(`/category/${category.slug}`);
+}
+
+export async function saveCategoryDetails(formData:FormData):Promise<{ok:boolean;error?:string}> {
+  const {supabase}=await requireAdmin(["owner","manager","products"]);
+  const parsed=categoryDetailsSchema.safeParse({
+    slug:formData.get("slug"),
+    name:formData.get("name"),
+    english:formData.get("english"),
+    description:formData.get("description"),
+  });
+  if(!parsed.success)return {ok:false,error:"راجعي البيانات؛ الاسم والوصف مطلوبان وبالطول المحدد."};
+  const {slug,name,english,description}=parsed.data;
+  const {error}=await supabase.rpc("update_store_category",{p_slug:slug,p_name:name,p_english:english,p_description:description});
+  if(error){
+    if(error.message.toLowerCase().includes("unique"))return {ok:false,error:"فيه صنف تاني بنفس الاسم؛ اختاري اسم مختلف."};
+    if(error.message.toLowerCase().includes("update_store_category")||error.code==="PGRST202")return {ok:false,error:"شغّلي ترحيل تعديل الأصناف في Supabase أولاً."};
+    return {ok:false,error:"تعذر حفظ بيانات الصنف. راجعي صلاحيات قاعدة البيانات."};
+  }
+  refreshCategoryPages();
+  return {ok:true};
 }
 
 export async function saveCategoryImage(formData:FormData):Promise<{ok:boolean;error?:string;warning?:string}> {
