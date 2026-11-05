@@ -6,6 +6,7 @@ import "./dashboard.css";
 import "./category-manager.css";
 import "./customer-account.css";
 import "./customer-account-extra.css";
+import { AuthCodeRedirect } from "@/components/auth-code-redirect";
 
 export const metadata: Metadata = {
   title: { default: "مكرمية | حرفة يدوية بلمسة من البيت", template: "%s | مكرمية" },
@@ -20,5 +21,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ar" dir="rtl"><body>{children}</body></html>;
+  return <html lang="ar" dir="rtl"><body><AuthCodeRedirect/>{children}</body></html>;
 }

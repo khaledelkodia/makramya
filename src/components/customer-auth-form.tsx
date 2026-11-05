@@ -28,7 +28,7 @@ export function CustomerAuthForm({initialEmail="",lockEmail=false,initialMode="s
     const supabase=createClient();
     try{
       if(mode==="signup"){
-        const callback=new URL("/auth/callback",process.env.NEXT_PUBLIC_SITE_URL||window.location.origin);
+        const callback=new URL("/auth/callback",window.location.origin);
         callback.searchParams.set("next","/account?confirmed=1");
         const {data,error}=await supabase.auth.signUp({
           email:normalizedEmail,
