@@ -32,10 +32,12 @@ export default async function CustomerAccountPage(){
   }
   const setupError=Boolean(claimError||ordersError||relatedError);
   const setupMessage=claimError?.message.includes("email_not_verified")?"أكدي بريدك الإلكتروني من رسالة التفعيل عشان تظهر طلباتك.":"لو الطلبات مش ظاهرة، تأكدي من تشغيل ترحيل حسابات العملاء في Supabase. طلبك يظل محفوظًا حتى تفعيل الربط.";
+  const userMetadata=user.user_metadata as Record<string,unknown>;
+  const displayName=typeof userMetadata.full_name==="string"&&userMetadata.full_name.trim()?userMetadata.full_name:orderRows[0]?.customer_name||"تاني";
 
   return <main className="track-page customer-account-page">
     <header className="track-header"><Link className="brand" href="/"><span className="brand-mark">م</span><span className="brand-word">مكرمية<small>حرفة يدوية بلمسة من البيت</small></span></Link><form action={logoutCustomer}><button className="customer-logout"><LogOut size={15}/> تسجيل الخروج</button></form></header>
-    <section className="customer-account-heading"><span className="eyebrow">مساحتك الخاصة</span><h1>أهلاً بيكي <em>{user.user_metadata?.full_name||orderRows[0]?.customer_name||"تاني"}.</em></h1><p>{user.email} · طلباتك محفوظة هنا، وتقدري تتابعي كل طلب في أي وقت.</p></section>
+    <section className="customer-account-heading"><span className="eyebrow">مساحتك الخاصة</span><h1>أهلاً بيكي <em>{displayName}.</em></h1><p>{user.email} · طلباتك محفوظة هنا، وتقدري تتابعي كل طلب في أي وقت.</p></section>
     {setupError&&<div className="notice-box customer-account-notice">{setupMessage}</div>}
     <div className="customer-order-list-heading"><div><span className="eyebrow">سجل مشترياتك</span><h2>طلباتك <em>الأخيرة.</em></h2></div><span>{new Intl.NumberFormat("ar-EG").format(orderRows.length)} طلب</span></div>
     {orderRows.length? <section className="customer-order-list">{orderRows.map(order=>{

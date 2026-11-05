@@ -64,7 +64,7 @@ export function CustomerAuthForm({initialEmail="",lockEmail=false,initialMode="s
       <label>كلمة المرور<input name="password" type="password" required minLength={8} autoComplete={mode==="signup"?"new-password":"current-password"} placeholder={mode==="signup"?"٨ أحرف على الأقل":"كلمة المرور"}/></label>
       {mode==="signup"&&<small>هنبعتلك رسالة لتأكيد البريد. بعد التأكيد هتظهر طلباتك المرتبطة بنفس البريد.</small>}
       {message&&<div className={success?"success-note":"form-error"} role="status">{message}</div>}
-      {success&&<Link className="customer-auth-resend" href={`/account/login?email=${encodeURIComponent(normalizedEmail)}`}>لو عندك حساب بالفعل، سجّلي الدخول</Link>}
+      {success&&<Link className="customer-auth-resend" href={`/account/login?email=${encodeURIComponent(email.trim().toLowerCase())}`}>لو عندك حساب بالفعل، سجّلي الدخول</Link>}
       <button className="button button-dark" disabled={busy}>{busy?"لحظة واحدة...":mode==="signup"?"إنشاء حسابي":"دخول لحسابي"}</button>
     </form>
   </section>;
