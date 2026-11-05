@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./overrides.css";
+import "./hero-mobile.css";
 import "./dashboard.css";
 
 export const metadata: Metadata = {
