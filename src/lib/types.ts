@@ -85,6 +85,7 @@ export type Database = {
     Functions: {
       place_order: { Args: { p_customer_name: string; p_phone: string; p_address: string; p_governorate:string; p_notes: string; p_items: { product_id: string; color: string; size: string; quantity: number }[] }; Returns: string };
       track_order: { Args: { p_order_id:string }; Returns: CustomerOrderTracking | null };
+      track_order_by_prefix: { Args: { p_order_id_prefix:string }; Returns: CustomerOrderTracking | null };
       update_store_category: { Args: { p_slug:string; p_name:string; p_english:string; p_description:string }; Returns: boolean };
     };
     Enums: Record<string, never>;
