@@ -63,6 +63,56 @@ export async function createProduct(formData: FormData): Promise<{ ok: boolean; 
   return { ok:true };
 }
 
+export async function updateProduct(formData:FormData):Promise<{ok:boolean;error?:string;warning?:string}> {
+  const {supabase}=await requireAdmin(["owner","manager","products"]);
+  const productId=z.string().uuid().safeParse(formData.get("product_id"));
+  if(!productId.success)return {ok:false,error:"المنتج المطلوب غير صحيح."};
+  const parsed=productSchema.safeParse(Object.fromEntries(formData));
+  if(!parsed.success)return {ok:false,error:"راجعي البيانات؛ في خانة ناقصة أو غير صحيحة."};
+  const data=parsed.data;
+  const colors: {name:string;hex:string}[]=[];
+  const sizes=data.sizes.split(",").map(item=>item.trim()).filter(Boolean);
+  if(!data.colors.split(",").some(item=>item.trim())||!sizes.length)return {ok:false,error:"أضيفي لون ومقاس واحد على الأقل."};
+  const {data:existing,error:readError}=await supabase.from("products").select("slug,image_url,colors").eq("id",productId.data).maybeSingle();
+  if(readError||!existing)return {ok:false,error:"مش قادرين نوصل للمنتج المطلوب."};
+  const previousColors=Array.isArray(existing.colors)?existing.colors as {name:string;hex:string}[]:[];
+  const palette=["#d4c3a4","#b69e7c","#73755c","#c2927f"];
+  for(const [index,item] of data.colors.split(",").entries()){
+    const name=item.trim();
+    if(name)colors.push({name,hex:previousColors.find(color=>color.name===name)?.hex||palette[index%palette.length]});
+  }
+
+  let imageUrl=existing.image_url;
+  let uploadedPath:string|null=null;
+  const image=formData.get("image");
+  if(image instanceof File&&image.size){
+    if(!["image/jpeg","image/png","image/webp"].includes(image.type)||image.size>5*1024*1024)return {ok:false,error:"الصورة لازم تكون JPG أو PNG أو WebP وأقل من 5 ميجابايت."};
+    const extension=image.type==="image/png"?"png":image.type==="image/webp"?"webp":"jpg";
+    uploadedPath=`${crypto.randomUUID()}.${extension}`;
+    const {error:uploadError}=await supabase.storage.from("products").upload(uploadedPath,new Uint8Array(await image.arrayBuffer()),{contentType:image.type,upsert:false});
+    if(uploadError)return {ok:false,error:"تعذر رفع الصورة الجديدة. راجعي صلاحيات التخزين."};
+    imageUrl=supabase.storage.from("products").getPublicUrl(uploadedPath).data.publicUrl;
+  }
+
+  const {error:updateError}=await supabase.from("products").update({
+    name:data.name,category:data.category,description:data.description,price:data.price,style_key:data.style_key,
+    badge:data.badge||null,colors,sizes,inventory_count:data.inventory_count,track_inventory:data.track_inventory,
+    image_url:imageUrl,updated_at:new Date().toISOString(),
+  }).eq("id",productId.data);
+  if(updateError){if(uploadedPath)await supabase.storage.from("products").remove([uploadedPath]);return {ok:false,error:"تعذر حفظ تعديلات المنتج."};}
+
+  let warning:string|undefined;
+  const marker="/storage/v1/object/public/products/";
+  if(uploadedPath&&existing.image_url?.includes(marker)){
+    const oldPath=decodeURIComponent(existing.image_url.split(marker)[1].split("?")[0]);
+    const {error:removeError}=await supabase.storage.from("products").remove([oldPath]);
+    if(removeError)warning="اتحدّثت بيانات المنتج والصورة الجديدة، لكن الصورة القديمة ما اتحذفتش من التخزين.";
+  }
+  revalidatePath("/");revalidatePath("/categories");revalidatePath("/dashboard/products");revalidatePath("/product/[slug]","page");
+  for(const category of categories)revalidatePath(`/category/${category.slug}`);
+  return {ok:true,warning};
+}
+
 export async function setProductStatus(id: string, status: "active"|"draft"|"archived") {
   const { supabase } = await requireAdmin(["owner", "manager", "products"]);
   const { error } = await supabase.from("products").update({ status, updated_at:new Date().toISOString() }).eq("id",id);
