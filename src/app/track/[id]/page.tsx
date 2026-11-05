@@ -8,10 +8,14 @@ export const metadata:Metadata={title:"متابعة الطلب",robots:{index:fa
 export const dynamic="force-dynamic";
 
 export default async function TrackOrderPage({params}:{params:Promise<{id:string}>}){
-  const {id}=await params;const parsed=z.string().uuid().safeParse(id);let order:CustomerOrderTracking|null=null;
+  const {id}=await params;const parsed=z.string().uuid().safeParse(id);let order:CustomerOrderTracking|null=null;let unavailable=false;
   if(parsed.success){
-    try{const supabase=await createClient();const {data}=await supabase.rpc("track_order",{p_order_id:parsed.data});order=data as CustomerOrderTracking|null;}
-    catch{order=null;}
+    try{
+      const supabase=await createClient();const {data,error}=await supabase.rpc("track_order",{p_order_id:parsed.data});
+      if(error){console.error("Unable to load order tracking. Apply supabase/migrations/202611050001_order_tracking.sql if it has not been run.",error);unavailable=true;}
+      else order=data as CustomerOrderTracking|null;
+    }
+    catch(error){console.error("Unable to initialize order tracking.",error);unavailable=true;}
   }
-  return <OrderTracking order={order}/>;
+  return <OrderTracking order={order} unavailable={unavailable}/>;
 }

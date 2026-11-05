@@ -7,8 +7,8 @@ const labels:Record<OrderStatus,string>={new:"وصلنا الطلب",confirmed:"
 const egp=(value:number)=>new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(value);
 function dateTime(value:string){return new Intl.DateTimeFormat("ar-EG",{dateStyle:"medium",timeStyle:"short"}).format(new Date(value));}
 
-export function OrderTracking({order}:{order:CustomerOrderTracking|null}){
-  if(!order)return <main className="track-page"><div className="track-card track-not-found"><span className="eyebrow">متابعة الطلب</span><h1>مش لاقيين الطلب ده.</h1><p>راجعي رابط المتابعة اللي ظهر بعد تأكيد الطلب، أو كلمينا لو محتاجة مساعدة.</p><Link href="/categories" className="button button-dark">ارجعي للمتجر <ArrowLeft size={15}/></Link></div></main>;
+export function OrderTracking({order,unavailable=false}:{order:CustomerOrderTracking|null;unavailable?:boolean}){
+  if(!order)return <main className="track-page"><div className="track-card track-not-found"><span className="eyebrow">متابعة الطلب</span><h1>{unavailable?"مش قادرين نحمّل حالة الطلب دلوقتي.":"مش لاقيين الطلب ده."}</h1><p>{unavailable?"حصلت مشكلة مؤقتة في تحميل بيانات الطلب. جرّبي تاني بعد شوية، أو كلمينا لو المشكلة مستمرة.":"راجعي رابط المتابعة اللي ظهر بعد تأكيد الطلب، أو كلمينا لو محتاجة مساعدة."}</p><Link href="/categories" className="button button-dark">ارجعي للمتجر <ArrowLeft size={15}/></Link></div></main>;
   const currentIndex=statuses.indexOf(order.status);
   const cancelled=order.status==="cancelled";
   return <main className="track-page"><header className="track-header"><Link className="brand" href="/"><span className="brand-mark">م</span><span className="brand-word">مكرمية<small>حرفة يدوية بلمسة من البيت</small></span></Link><Link href="/categories" className="track-back">العودة للمتجر <ArrowLeft size={14}/></Link></header><div className="track-content"><section className="track-heading"><span className="eyebrow">متابعة طلبك</span><h1>طلب <em>MK-{order.order_number}</em></h1><p>تقدري تشوفي آخر مرحلة وصل لها طلبك من هنا.</p></section>
