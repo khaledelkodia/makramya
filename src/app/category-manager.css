@@ -4,3 +4,5 @@
 .category-edit-form input:focus,.category-edit-form textarea:focus{border-color:#a9a18c}
 .category-edit-form textarea{resize:vertical;line-height:1.7}
 .category-edit-form .button{justify-self:start;padding:9px 11px;font-size:9px;gap:7px}
+.row-actions .product-delete-action{display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-color:#eadbd6;background:#fff9f7;color:#955d4e;white-space:nowrap}
+.row-actions .product-delete-action:hover{background:#f7efec}
